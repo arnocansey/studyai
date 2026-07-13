@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "StudyAI",
+    "slug": "studyai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#030303"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.studyai.app",
+      "icon": "./assets/icon.png"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#030303"
+      },
+      "package": "com.studyai.app",
+      "icon": "./assets/icon.png",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/icon.png",
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#030303"
+      }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-camera",
+      "expo-secure-store",
+      "expo-notifications",
+      "expo-video",
+      "expo-local-authentication"
+    ],
+    "scheme": "studyai",
+    "updates": {
+      "url": "https://u.expo.dev/88f83b38-e1dc-4461-ab19-decc8527a53e",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 30000
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "88f83b38-e1dc-4461-ab19-decc8527a53e"
+      }
+    },
+    "owner": "whoisarnold"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@studyai/api",
+  "version": "1.0.0",
+  "description": "StudyAI Shared Types, Zod Schemas, and Client SDK",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

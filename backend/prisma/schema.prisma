@@ -1,0 +1,476 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+}
+
+enum LessonType {
+  TEXT
+  VIDEO
+  CODING_LAB
+  NETWORKING_LAB
+  CYBER_LAB
+  QUIZ
+}
+
+model User {
+  id              String         @id @default(uuid())
+  email           String         @unique
+  name            String?
+  password        String?
+  avatarUrl       String?
+  role            Role           @default(STUDENT)
+  xp              Int            @default(0)
+  level           Int            @default(1)
+  streak          Int            @default(0)
+  longestStreak   Int            @default(0)
+  streakFreezes   Int            @default(0)
+  lastActiveAt    DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+
+  // Authentication
+  accounts        Account[]
+  sessions        Session[]
+
+  // Progress & Labs
+  enrollments     Enrollment[]
+  labSessions     LabSession[]
+  badges          UserBadge[]
+
+  // Gamification
+  achievements    UserAchievement[]
+  skills          UserSkill[]
+  challenges      UserChallenge[]
+  studySessions   StudySession[]
+  streakFreezesUsed StreakFreeze[]
+
+  // Community
+  discussions     Discussion[]
+  discussionReplies DiscussionReply[]
+  upvotedDiscussions DiscussionUpvote[]
+  leagueMembers   LeagueMember[]
+
+  // Study Groups
+  studyGroupsCreated StudyGroup[]
+  studyGroupMemberships StudyGroupMember[]
+
+  // Portfolios
+  portfolios      Portfolio[]
+
+  // Portfolios & Content
+  certificates    Certificate[]
+  posts           Post[]
+  transactions    Transaction[]
+  auditLogs       AuditLog[]
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Course {
+  id          String       @id @default(uuid())
+  title       String
+  slug        String       @unique
+  description String
+  coverImage  String?
+  published   Boolean      @default(false)
+  difficulty  String       
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  modules     Module[]
+  enrollments Enrollment[]
+}
+
+model Module {
+  id          String   @id @default(uuid())
+  courseId    String
+  title       String
+  order       Int
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons     Lesson[]
+
+  @@unique([courseId, order])
+}
+
+model Lesson {
+  id          String           @id @default(uuid())
+  moduleId    String
+  title       String
+  content     String           
+  type        LessonType
+  order       Int
+  module      Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  
+  // Custom lab config details
+  labConfig   Json?            
+  quizzes     QuizQuestion[]
+  progress    LessonProgress[]
+
+  @@unique([moduleId, order])
+}
+
+model LessonProgress {
+  id          String   @id @default(uuid())
+  userId      String
+  lessonId    String
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+}
+
+model Enrollment {
+  id        String    @id @default(uuid())
+  userId    String
+  courseId  String
+  joinedAt  DateTime  @default(now())
+  completed Boolean   @default(false)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+}
+
+model QuizQuestion {
+  id            String   @id @default(uuid())
+  lessonId      String
+  question      String
+  options       String[] 
+  correctAnswer String
+  lesson        Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+}
+
+model Badge {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  description String
+  iconUrl     String
+  users       UserBadge[]
+}
+
+model UserBadge {
+  id        String   @id @default(uuid())
+  userId    String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+}
+
+model LabSession {
+  id          String   @id @default(uuid())
+  userId      String
+  lessonId    String
+  status      String   
+  logs        String?
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Certificate {
+  id        String   @id @default(uuid())
+  userId    String
+  courseId  String
+  issuedAt  DateTime @default(now())
+  hash      String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Post {
+  id        String    @id @default(uuid())
+  userId    String
+  title     String
+  content   String
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id        String   @id @default(uuid())
+  userId    String
+  itemId    String
+  amount    Float
+  status    String   
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  details   Json
+  ipAddress String?
+  timestamp DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// ==================== GAMIFICATION MODELS ====================
+
+model Achievement {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  title       String
+  description String
+  icon        String
+  category    String   // "learning", "streak", "social", "challenge", "mastery"
+  tier        String   @default("bronze") // "bronze", "silver", "gold", "platinum"
+  xpReward    Int      @default(0)
+  requirement Json     // { "type": "lessons_completed", "count": 10 }
+  users       UserAchievement[]
+  createdAt   DateTime @default(now())
+}
+
+model UserAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  achievementId String
+  earnedAt      DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+}
+
+model SkillTree {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  title       String
+  description String
+  icon        String
+  category    String   // "programming", "networking", "cybersecurity", "cloud", "ai"
+  parentId    String?
+  parent      SkillTree? @relation("SkillParent", fields: [parentId], references: [id])
+  children    SkillTree[] @relation("SkillParent")
+  order       Int      @default(0)
+  xpRequired  Int      @default(0)
+  skills      UserSkill[]
+  createdAt   DateTime @default(now())
+}
+
+model UserSkill {
+  id         String    @id @default(uuid())
+  userId     String
+  skillId    String
+  level      Int       @default(0) // 0-100 mastery
+  xp         Int       @default(0)
+  unlockedAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill      SkillTree @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+}
+
+model DailyChallenge {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  type        String   // "coding", "quiz", "networking", "cyber"
+  difficulty  String   // "easy", "medium", "hard"
+  xpReward    Int      @default(50)
+  content     Json     // challenge-specific data
+  date        DateTime @default(now())
+  expiresAt   DateTime
+  users       UserChallenge[]
+  createdAt   DateTime @default(now())
+
+  @@unique([date, type])
+}
+
+model UserChallenge {
+  id          String        @id @default(uuid())
+  userId      String
+  challengeId String
+  completed   Boolean       @default(false)
+  score       Int?
+  completedAt DateTime?
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge   DailyChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, challengeId])
+}
+
+model StudySession {
+  id        String   @id @default(uuid())
+  userId    String
+  duration  Int      // in seconds
+  xpEarned  Int      @default(0)
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StreakFreeze {
+  id        String   @id @default(uuid())
+  userId    String
+  usedAt    DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==================== COMMUNITY MODELS ====================
+
+model Discussion {
+  id          String   @id @default(uuid())
+  title       String
+  content     String
+  category    String   // "general", "help", "project", "career"
+  tags        String[]
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  replies     DiscussionReply[]
+  upvoters    DiscussionUpvote[]
+  upvotes     Int      @default(0)
+  viewCount   Int      @default(0)
+  pinned      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DiscussionReply {
+  id            String     @id @default(uuid())
+  discussionId  String
+  content       String
+  authorId      String
+  author        User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  discussion    Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  upvotes       Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model DiscussionUpvote {
+  id            String     @id @default(uuid())
+  discussionId  String
+  userId        String
+  discussion    Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime   @default(now())
+
+  @@unique([discussionId, userId])
+}
+
+// ==================== LEAGUE MODELS ====================
+
+model League {
+  id        String   @id @default(uuid())
+  name      String   // "Bronze", "Silver", "Gold", "Platinum", "Diamond"
+  tier      Int      // 1-5
+  minXP     Int
+  maxXP     Int?
+  icon      String
+  color     String
+  users     LeagueMember[]
+}
+
+model LeagueMember {
+  id        String   @id @default(uuid())
+  userId    String
+  leagueId  String
+  season    String   // "2026-W28"
+  xp        Int      @default(0)
+  rank      Int?
+  promoted  Boolean  @default(false)
+  demoted   Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime @default(now())
+
+  @@unique([userId, leagueId, season])
+}
+
+// ==================== STUDY GROUPS ====================
+
+model StudyGroup {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  topic       String   // "programming", "networking", "cybersecurity", "cloud", "ai"
+  maxMembers  Int      @default(10)
+  isPublic    Boolean  @default(true)
+  creatorId   String
+  creator     User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  members     StudyGroupMember[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model StudyGroupMember {
+  id        String     @id @default(uuid())
+  groupId   String
+  userId    String
+  role      String     @default("member") // "admin", "moderator", "member"
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime   @default(now())
+
+  @@unique([groupId, userId])
+}
+
+// ==================== PORTFOLIOS ====================
+
+model Portfolio {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  bio         String?
+  avatarUrl   String?
+  isPublic    Boolean  @default(true)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects    PortfolioProject[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId])
+}
+
+model PortfolioProject {
+  id              String      @id @default(uuid())
+  portfolioId     String
+  title           String
+  description     String?
+  technologies    String[]
+  url             String?
+  githubUrl       String?
+  imageUrl        String?
+  featured        Boolean     @default(false)
+  order           Int         @default(0)
+  portfolio       Portfolio   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}

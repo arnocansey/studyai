@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: studyai-backend
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: cd backend && npm install && npx prisma generate && npx nest build
+    startCommand: cd backend && node dist/src/main.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRATION
+        value: 7d
+      - key: CORS_ORIGINS
+        value: https://studyai-frontend.vercel.app,http://localhost:3000
+      - key: PORT
+        value: 4000
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: THROTTLE_TTL
+        value: 60
+      - key: THROTTLE_LIMIT
+        value: 60

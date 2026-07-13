@@ -1,0 +1,37 @@
+{
+  "name": "studyai-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "StudyAI Platform Monorepo Workspace",
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter studyai-backend start:dev",
+    "dev:mobile": "pnpm --filter mobile start",
+    "build:all": "pnpm --recursive build",
+    "install:all": "pnpm install",
+    "prepare": "husky"
+  },
+  "overrides": {
+    "@expo/metro-runtime": "~6.1.2",
+    "@react-native/debugger-frontend": "0.81.6",
+    "@types/react": "~19.1.10",
+    "expo-asset": "~12.0.13",
+    "expo-router": "~6.0.24",
+    "expo": "~54.0.0",
+    "typescript": "~5.9.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
+    "sharp": "^0.35.3"
+  }
+}
