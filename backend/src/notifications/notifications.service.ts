@@ -31,15 +31,14 @@ export class NotificationsService implements OnModuleInit {
     const privateKey = this.configService.get<string>('VAPID_PRIVATE_KEY');
     const email = this.configService.get<string>('VAPID_EMAIL');
 
-    if (!publicKey || !privateKey) {
+    if (!publicKey || !privateKey || !email) {
       this.logger.warn(
-        'VAPID keys not configured. Web push notifications will not work. ' +
-          'Generate keys with: npx web-push generate-vapid-keys',
+        'VAPID keys or email not configured. Web push notifications disabled.',
       );
       return;
     }
 
-    webPush.setVapidDetails(email || 'mailto:noreply@studyai.app', publicKey, privateKey);
+    webPush.setVapidDetails(email, publicKey, privateKey);
     this.logger.log('Web push notifications initialized with VAPID keys');
   }
 
