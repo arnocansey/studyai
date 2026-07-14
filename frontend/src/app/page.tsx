@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Code, Network, ShieldAlert } from 'lucide-react';
+import { Code, Network, ShieldAlert, ClipboardList, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   Sidebar,
@@ -250,7 +250,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen bg-[#030303] text-zinc-100 cyber-grid">
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} username={username} userRole={userRole} />
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} username={username} userRole={userRole} role={role} />
 
       <main className="flex-1 flex flex-col min-w-0">
         <Header streak={streak} userXP={userXP} checkedIn={checkedIn} onCheckIn={handleCheckIn} />
@@ -307,7 +307,38 @@ export default function Dashboard() {
 
               {activeTab === 'dashboard' && role === 'INSTRUCTOR' && <InstructorPanel username={username} />}
               {activeTab === 'dashboard' && role === 'ADMIN' && <AdminPanel username={username} />}
-              {activeTab === 'courses' && <CourseCatalog courses={displayCourses} onEnter={enterCourse} />}
+              {activeTab === 'courses' && role === 'STUDENT' && <CourseCatalog courses={displayCourses} onEnter={enterCourse} />}
+              {activeTab === 'manage-courses' && (role === 'INSTRUCTOR' || role === 'ADMIN') && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-extrabold text-white">Manage Courses</h2>
+                    <button className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyber-purple to-cyber-blue hover:opacity-90 text-white font-bold text-xs transition-all cursor-pointer border-none">
+                      + Create New Course
+                    </button>
+                  </div>
+                  <CourseCatalog courses={displayCourses} onEnter={enterCourse} />
+                </div>
+              )}
+              {activeTab === 'submissions' && (role === 'INSTRUCTOR' || role === 'ADMIN') && (
+                <div className="space-y-6">
+                  <h2 className="text-2xl font-extrabold text-white">Pending Submissions</h2>
+                  <div className="p-8 rounded-2xl border border-zinc-800 bg-zinc-950/40 text-center">
+                    <ClipboardList className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+                    <p className="text-zinc-400 text-sm">No pending submissions to review.</p>
+                    <p className="text-zinc-600 text-xs mt-2">Student submissions will appear here for grading.</p>
+                  </div>
+                </div>
+              )}
+              {activeTab === 'students' && (role === 'INSTRUCTOR' || role === 'ADMIN') && (
+                <div className="space-y-6">
+                  <h2 className="text-2xl font-extrabold text-white">Students</h2>
+                  <div className="p-8 rounded-2xl border border-zinc-800 bg-zinc-950/40 text-center">
+                    <Users className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+                    <p className="text-zinc-400 text-sm">Student roster will appear here.</p>
+                    <p className="text-zinc-600 text-xs mt-2">View enrolled students and their progress.</p>
+                  </div>
+                </div>
+              )}
               {activeTab === 'labs' && <LabsSection />}
               {activeTab === 'leaderboard' && <Leaderboard userXP={userXP} username={username} />}
             </>

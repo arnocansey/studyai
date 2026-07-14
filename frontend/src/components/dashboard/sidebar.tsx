@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { BookOpen, Code, Terminal, Trophy, Cpu, LogOut } from 'lucide-react';
+import { BookOpen, Code, Terminal, Trophy, Cpu, LogOut, Users, ClipboardList, GraduationCap } from 'lucide-react';
 import { useAuth } from '@/components/auth-provider';
 import { useRouter } from 'next/navigation';
 
@@ -10,17 +10,36 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
   username: string;
   userRole: string;
+  role?: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
 }
 
-export function Sidebar({ activeTab, onTabChange, username, userRole }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, username, userRole, role = 'STUDENT' }: SidebarProps) {
   const { logout } = useAuth();
   const router = useRouter();
-  const navItems = [
+
+  const studentNav = [
     { id: 'dashboard', label: 'Dashboard', icon: BookOpen },
     { id: 'courses', label: 'Courses', icon: Code },
     { id: 'labs', label: 'Simulated Labs', icon: Terminal },
     { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
   ];
+
+  const instructorNav = [
+    { id: 'dashboard', label: 'Dashboard', icon: BookOpen },
+    { id: 'manage-courses', label: 'Manage Courses', icon: GraduationCap },
+    { id: 'submissions', label: 'Submissions', icon: ClipboardList },
+    { id: 'students', label: 'Students', icon: Users },
+  ];
+
+  const adminNav = [
+    { id: 'dashboard', label: 'Dashboard', icon: BookOpen },
+    { id: 'manage-courses', label: 'Manage Courses', icon: GraduationCap },
+    { id: 'submissions', label: 'Submissions', icon: ClipboardList },
+    { id: 'students', label: 'Students', icon: Users },
+    { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+  ];
+
+  const navItems = role === 'ADMIN' ? adminNav : role === 'INSTRUCTOR' ? instructorNav : studentNav;
 
   const handleLogout = () => {
     logout();
