@@ -4,7 +4,7 @@ import { isOnline, addToSyncQueue, getOfflineData, saveOfflineData } from './off
 import { cache } from './cache';
 
 const EXTRA = Constants.expoConfig?.extra || {};
-const API_BASE = EXTRA.apiBase || process.env.EXPO_PUBLIC_API_BASE || 'http://10.10.6.33:4000/api/v1';
+const API_BASE = EXTRA.apiBase || process.env.EXPO_PUBLIC_API_BASE || 'https://studyaibackend-rxzz.onrender.com/api/v1';
 
 let authToken: string | null = null;
 

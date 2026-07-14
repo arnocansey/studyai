@@ -4,7 +4,7 @@ services:
     runtime: node
     region: oregon
     plan: free
-    buildCommand: cd backend && npm install --legacy-peer-deps --include=dev && npx prisma@6.19.3 generate && npx nest build
+    buildCommand: cd backend && npm install --legacy-peer-deps --include=dev && npx prisma@6.19.3 db push --accept-data-loss && npx prisma@6.19.3 generate && npx nest build
     startCommand: cd backend && node dist/src/main.js
     envVars:
       - key: NODE_ENV
@@ -14,7 +14,7 @@ services:
       - key: DIRECT_URL
         value: "postgresql://neondb_owner:npg_2anZNrvm7WRs@ep-small-smoke-attwr3r0.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
       - key: JWT_SECRET
-        value: "studyai-dev-jwt-secret-change-in-production-2026"
+        value: "a7189c6a7363b674e39e8704460ec6baf4945cfe909025e0bf9f798cef68af336b28e42819d985356bff25f23ed87b6d8df688b02d59df49a513b9fa2516f9fb"
       - key: JWT_EXPIRATION
         value: 7d
       - key: CORS_ORIGINS

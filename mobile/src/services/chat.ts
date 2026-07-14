@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { loadAuthToken } from './api';
 
 const EXTRA = Constants.expoConfig?.extra || {};
-const WS_URL = EXTRA.wsBase || process.env.EXPO_PUBLIC_WS_BASE || 'http://10.10.6.33:4000';
+const WS_URL = EXTRA.wsBase || process.env.EXPO_PUBLIC_WS_BASE || 'https://studyaibackend-rxzz.onrender.com';
 
 export interface ChatMessage {
   id: string;
