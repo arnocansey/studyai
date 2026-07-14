@@ -27,19 +27,21 @@ export class NotificationsService implements OnModuleInit {
   constructor(private readonly configService: ConfigService) {}
 
   onModuleInit() {
-    const publicKey = this.configService.get<string>('VAPID_PUBLIC_KEY');
-    const privateKey = this.configService.get<string>('VAPID_PRIVATE_KEY');
-    const email = this.configService.get<string>('VAPID_EMAIL');
+    try {
+      const publicKey = this.configService.get<string>('VAPID_PUBLIC_KEY');
+      const privateKey = this.configService.get<string>('VAPID_PRIVATE_KEY');
+      const email = this.configService.get<string>('VAPID_EMAIL');
 
-    if (!publicKey || !privateKey || !email) {
-      this.logger.warn(
-        'VAPID keys or email not configured. Web push notifications disabled.',
-      );
-      return;
+      if (!publicKey || !privateKey || !email) {
+        this.logger.warn('VAPID not configured. Web push notifications disabled.');
+        return;
+      }
+
+      webPush.setVapidDetails(email, publicKey, privateKey);
+      this.logger.log('Web push notifications initialized');
+    } catch (err) {
+      this.logger.warn('Failed to initialize VAPID: ' + err.message);
     }
-
-    webPush.setVapidDetails(email, publicKey, privateKey);
-    this.logger.log('Web push notifications initialized with VAPID keys');
   }
 
   getVapidPublicKey(): string | null {
