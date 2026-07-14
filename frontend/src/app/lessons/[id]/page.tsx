@@ -36,7 +36,7 @@ export default function LessonViewer() {
   const params = useParams();
   const router = useRouter();
   const lessonId = params.id as string;
-  const API_BASE = "http://localhost:4000/api/v1";
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
 
   // Page States
   const [lesson, setLesson] = useState<any>(null);
@@ -790,7 +790,7 @@ export default function LessonViewer() {
                     <div className="flex-1 relative border-b border-zinc-850">
                       <Editor
                         height="100%"
-                        language="python"
+                        language={lesson?.labConfig?.language || "python"}
                         theme="vs-dark"
                         value={code}
                         onChange={(val) => setCode(val || "")}
