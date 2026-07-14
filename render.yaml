@@ -5,7 +5,7 @@ services:
     region: oregon
     plan: free
     rootDir: backend
-    buildCommand: npm install --legacy-peer-deps && npx prisma generate && npx nest build
+    buildCommand: npm install --legacy-peer-deps --include=dev && npx prisma generate && npx nest build
     startCommand: node dist/src/main.js
     envVars:
       - key: NODE_ENV
