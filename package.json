@@ -1,6 +1,7 @@
 {
   "name": "studyai-monorepo",
   "version": "1.0.0",
+  "packageManager": "pnpm@11.7.0",
   "private": true,
   "description": "StudyAI Platform Monorepo Workspace",
   "scripts": {

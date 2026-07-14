@@ -1,0 +1,11 @@
+{
+  "services": {
+    "frontend": {
+      "root": "frontend",
+      "buildCommand": "pnpm --filter frontend build",
+      "outputDirectory": ".next",
+      "framework": "nextjs",
+      "installCommand": "pnpm install"
+    }
+  }
+}
