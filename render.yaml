@@ -4,7 +4,7 @@ services:
     runtime: node
     region: oregon
     plan: free
-    buildCommand: cd backend && npm install --legacy-peer-deps --include=dev && npx prisma@6.19.3 db push --accept-data-loss && npx prisma@6.19.3 generate && npx nest build
+    buildCommand: cd backend && npm install --legacy-peer-deps --include=dev && npx prisma@6.19.3 db push && npx prisma@6.19.3 generate && npx nest build
     startCommand: cd backend && node dist/src/main.js
     envVars:
       - key: NODE_ENV
