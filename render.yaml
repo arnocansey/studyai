@@ -4,7 +4,7 @@ services:
     runtime: node
     region: oregon
     plan: free
-    buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && cd backend && npx prisma generate && npx nest build
+    buildCommand: cd backend && npm install --legacy-peer-deps && npx prisma generate && npx nest build
     startCommand: cd backend && node dist/src/main.js
     envVars:
       - key: NODE_ENV
