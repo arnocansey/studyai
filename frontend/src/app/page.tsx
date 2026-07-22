@@ -80,13 +80,38 @@ export default function Dashboard() {
               id: "python-control-flow",
               title: "Control Flow & Loops in Systems Scripts",
               type: "CODING_LAB",
-              locked: true,
             },
             {
               id: "python-file-io",
               title: "File Input/Output & Buffer Streams",
               type: "CODING_LAB",
-              locked: true,
+            },
+          ],
+        },
+      ],
+    },
+    "python-systems-programming": {
+      title: "Systems Programming & Scripting with Python",
+      description:
+        "Master systems automation, basic scripting syntax, data types, and file execution.",
+      modules: [
+        {
+          title: "Foundations & Basic Syntax",
+          lessons: [
+            {
+              id: "python-helloworld",
+              title: "The Hello World Executable",
+              type: "CODING_LAB",
+            },
+            {
+              id: "python-control-flow",
+              title: "Control Flow & Loops in Systems Scripts",
+              type: "CODING_LAB",
+            },
+            {
+              id: "python-file-io",
+              title: "File Input/Output & Buffer Streams",
+              type: "CODING_LAB",
             },
           ],
         },
@@ -103,19 +128,39 @@ export default function Dashboard() {
             {
               id: "cidr-calc",
               title: "CIDR Notation & Subnet Calculation",
-              type: "NET_SUBNET",
+              type: "NETWORKING_LAB",
             },
             {
               id: "subnet-routing",
               title: "Static Routing & Gateway Setup",
-              type: "NET_SUBNET",
-              locked: true,
+              type: "NETWORKING_LAB",
             },
             {
               id: "vlan-config",
               title: "VLAN Segmentation & Trunking",
-              type: "NET_SUBNET",
-              locked: true,
+              type: "NETWORKING_LAB",
+            },
+          ],
+        },
+      ],
+    },
+    "ip-subnetting-topologies": {
+      title: "IP Subnetting & Network Topologies",
+      description:
+        "Learn subnet masks, CIDR notations, packet traversals, and routing cable setups.",
+      modules: [
+        {
+          title: "CIDR & Routing Boundaries",
+          lessons: [
+            {
+              id: "net-class-c",
+              title: "Splitting Class C Subnets",
+              type: "NETWORKING_LAB",
+            },
+            {
+              id: "cidr-calc",
+              title: "CIDR Notation & Subnet Calculation",
+              type: "NETWORKING_LAB",
             },
           ],
         },
@@ -132,19 +177,39 @@ export default function Dashboard() {
             {
               id: "suid-exploit",
               title: "SUID Privilege Escalation & Exploit",
-              type: "CYBER_EXPLOIT",
+              type: "CYBER_LAB",
             },
             {
               id: "buffer-overflow",
               title: "Stack Buffer Overflow Exploits",
-              type: "CYBER_EXPLOIT",
-              locked: true,
+              type: "CYBER_LAB",
             },
             {
               id: "hash-cracking",
               title: "Password Hashing & Hash Cracking",
-              type: "CYBER_EXPLOIT",
-              locked: true,
+              type: "CYBER_LAB",
+            },
+          ],
+        },
+      ],
+    },
+    "ethical-hacking-linux-security": {
+      title: "Ethical Hacking & Linux Exploit Labs",
+      description:
+        "Master bash navigation, directory permissions, file cracking, and privilege escalations.",
+      modules: [
+        {
+          title: "Linux Directory Navigation & Security",
+          lessons: [
+            {
+              id: "cyber-suid",
+              title: "Exploiting SUID Binaries",
+              type: "CYBER_LAB",
+            },
+            {
+              id: "suid-exploit",
+              title: "SUID Privilege Escalation & Exploit",
+              type: "CYBER_LAB",
             },
           ],
         },

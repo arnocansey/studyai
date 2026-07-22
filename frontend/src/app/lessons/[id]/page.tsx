@@ -32,15 +32,348 @@ import "reactflow/dist/style.css";
 // CSS for Xterm must be loaded safely
 import "xterm/css/xterm.css";
 import { LessonMentorPanel } from "@/components/ai/lesson-mentor-panel";
+import { apiFetch } from "@/lib/api";
+
+type LabType = "CODING_LAB" | "NETWORKING_LAB" | "CYBER_LAB";
+
+type MockLesson = {
+  id: string;
+  title: string;
+  type: LabType;
+  content: string;
+  labConfig: Record<string, unknown>;
+  quizzes: Array<{
+    id: string;
+    question: string;
+    options: string[];
+    correctAnswer: string;
+  }>;
+};
+
+const mockLessons: Record<string, MockLesson> = {
+  "python-helloworld": {
+    id: "python-helloworld",
+    title: "The Hello World Executable",
+    type: "CODING_LAB",
+    content: `# Hello World in Python
+
+Welcome to your first programming lab! Python is an interpreted, high-level programming language known for its readability.
+
+### Today's Mission:
+Your goal is to write a script that outputs the text \`Hello, StudyAI!\` to the console.
+
+### Syntax Hint:
+\`\`\`python
+print("Your text here")
+\`\`\`
+`,
+    labConfig: {
+      language: "python",
+      starterCode: '# Write your Python code below\nprint("Hello, StudyAI!")',
+      solution: 'print("Hello, StudyAI!")',
+    },
+    quizzes: [
+      {
+        id: "q1",
+        question:
+          "Which built-in Python function writes text to the standard console output?",
+        options: ["echo()", "printf()", "print()", "system.out()"],
+        correctAnswer: "print()",
+      },
+    ],
+  },
+  "python-control-flow": {
+    id: "python-control-flow",
+    title: "Control Flow & Loops in Systems Scripts",
+    type: "CODING_LAB",
+    content: `# Control Flow in Python
+
+Use \`if\`, \`for\`, and \`while\` to automate systems tasks.
+
+### Today's Mission:
+Print the numbers \`1\` through \`5\`, one per line, using a loop.
+`,
+    labConfig: {
+      language: "python",
+      starterCode: "# Print 1..5 using a for-loop\n",
+      solution: "for i in range(1, 6):\n    print(i)",
+    },
+    quizzes: [
+      {
+        id: "q-cf",
+        question: "Which loop iterates over a sequence in Python?",
+        options: ["loop()", "for", "repeat", "foreach"],
+        correctAnswer: "for",
+      },
+    ],
+  },
+  "python-file-io": {
+    id: "python-file-io",
+    title: "File Input/Output & Buffer Streams",
+    type: "CODING_LAB",
+    content: `# File I/O
+
+Read and write files to automate log processing.
+
+### Today's Mission:
+Open \`status.log\` for writing and write the line \`READY\`.
+`,
+    labConfig: {
+      language: "python",
+      starterCode:
+        '# Write READY to status.log\nwith open("status.log", "w") as f:\n    f.write("")\n',
+      solution: 'with open("status.log", "w") as f:\n    f.write("READY")\n',
+    },
+    quizzes: [
+      {
+        id: "q-io",
+        question: "Which mode opens a file for writing (overwrite)?",
+        options: ['"r"', '"a"', '"w"', '"x"'],
+        correctAnswer: '"w"',
+      },
+    ],
+  },
+  "net-class-c": {
+    id: "net-class-c",
+    title: "Splitting Class C Subnets",
+    type: "NETWORKING_LAB",
+    content: `# Class C Subnetwork Design
+
+Subnetting divides a single network range into smaller isolated pieces (subnets) to restrict broadcast traffic and improve IP management.
+
+### Today's Mission:
+Segment \`192.168.1.0/24\` into at least 4 subnet blocks and enter the correct mask.
+`,
+    labConfig: {
+      networkRange: "192.168.1.0/24",
+      requiredSubnets: 4,
+      targetMask: "255.255.255.192",
+    },
+    quizzes: [
+      {
+        id: "q2",
+        question:
+          "What is the subnet mask representation of a /26 prefix block?",
+        options: [
+          "255.255.255.0",
+          "255.255.255.192",
+          "255.255.255.240",
+          "255.255.255.252",
+        ],
+        correctAnswer: "255.255.255.192",
+      },
+    ],
+  },
+  "cidr-calc": {
+    id: "cidr-calc",
+    title: "CIDR Notation & Subnet Calculation",
+    type: "NETWORKING_LAB",
+    content: `# CIDR Notation
+
+Convert between prefix lengths and dotted masks.
+
+### Today's Mission:
+For \`192.168.1.0/26\`, enter the subnet mask that yields 4 equal subnets from a /24.
+`,
+    labConfig: {
+      networkRange: "192.168.1.0/24",
+      requiredSubnets: 4,
+      targetMask: "255.255.255.192",
+    },
+    quizzes: [
+      {
+        id: "q-cidr",
+        question: "How many usable host addresses are in a /26?",
+        options: ["62", "64", "30", "14"],
+        correctAnswer: "62",
+      },
+    ],
+  },
+  "subnet-routing": {
+    id: "subnet-routing",
+    title: "Static Routing & Gateway Setup",
+    type: "NETWORKING_LAB",
+    content: `# Static Routing
+
+Configure gateway boundaries for segmented networks.
+
+### Today's Mission:
+Validate the /26 mask for your lab topology.
+`,
+    labConfig: {
+      networkRange: "192.168.1.0/24",
+      requiredSubnets: 4,
+      targetMask: "255.255.255.192",
+    },
+    quizzes: [
+      {
+        id: "q-route",
+        question: "What device typically forwards packets between subnets?",
+        options: ["Hub", "Router", "Repeater", "NIC"],
+        correctAnswer: "Router",
+      },
+    ],
+  },
+  "vlan-config": {
+    id: "vlan-config",
+    title: "VLAN Segmentation & Trunking",
+    type: "NETWORKING_LAB",
+    content: `# VLANs
+
+Segment broadcast domains without changing physical cabling.
+
+### Today's Mission:
+Use the topology canvas, then confirm the segmentation mask for this lab.
+`,
+    labConfig: {
+      networkRange: "192.168.1.0/24",
+      requiredSubnets: 4,
+      targetMask: "255.255.255.192",
+    },
+    quizzes: [
+      {
+        id: "q-vlan",
+        question: "Which IEEE standard defines VLANs?",
+        options: ["802.1Q", "802.11", "802.3af", "802.15"],
+        correctAnswer: "802.1Q",
+      },
+    ],
+  },
+  "cyber-suid": {
+    id: "cyber-suid",
+    title: "Exploiting SUID Binaries",
+    type: "CYBER_LAB",
+    content: `# Linux SUID Privilege Escalation
+
+SUID lets users run a file as the file owner.
+
+### Today's Mission:
+1. Inspect \`/bin/vuln-helper\`.
+2. Notice the SUID bit for root.
+3. Exploit it to read \`/root/flag.txt\`.
+`,
+    labConfig: {
+      flag: "studyai{suid_priv_escalation_success}",
+      environmentImage: "alpine-suid-vuln",
+    },
+    quizzes: [
+      {
+        id: "q3",
+        question:
+          "Which chmod permission code sets the SUID bit on an executable?",
+        options: ["chmod 777", "chmod +x", "chmod u+s", "chmod g+s"],
+        correctAnswer: "chmod u+s",
+      },
+    ],
+  },
+  "suid-exploit": {
+    id: "suid-exploit",
+    title: "SUID Privilege Escalation & Exploit",
+    type: "CYBER_LAB",
+    content: `# SUID Exploit Lab
+
+Find and abuse a misconfigured SUID binary to capture the root flag.
+`,
+    labConfig: {
+      flag: "studyai{suid_priv_escalation_success}",
+      environmentImage: "alpine-suid-vuln",
+    },
+    quizzes: [
+      {
+        id: "q-suid",
+        question:
+          "What does the 's' permission bit on a binary usually indicate?",
+        options: ["Sticky bit", "SUID/SGID", "Socket", "Sparse file"],
+        correctAnswer: "SUID/SGID",
+      },
+    ],
+  },
+  "buffer-overflow": {
+    id: "buffer-overflow",
+    title: "Stack Buffer Overflow Exploits",
+    type: "CYBER_LAB",
+    content: `# Buffer Overflow
+
+Overflow a vulnerable helper to escalate privileges in the sandbox.
+`,
+    labConfig: {
+      flag: "studyai{suid_priv_escalation_success}",
+      environmentImage: "alpine-suid-vuln",
+    },
+    quizzes: [
+      {
+        id: "q-bof",
+        question: "What memory region typically holds return addresses on x86?",
+        options: ["Heap", "Stack", "GPU VRAM", "BIOS"],
+        correctAnswer: "Stack",
+      },
+    ],
+  },
+  "hash-cracking": {
+    id: "hash-cracking",
+    title: "Password Hashing & Hash Cracking",
+    type: "CYBER_LAB",
+    content: `# Hash Cracking
+
+Use the sandbox shell to inspect the target and submit the recovered flag.
+`,
+    labConfig: {
+      flag: "studyai{suid_priv_escalation_success}",
+      environmentImage: "alpine-suid-vuln",
+    },
+    quizzes: [
+      {
+        id: "q-hash",
+        question: "Which algorithm is commonly used for Linux password hashes?",
+        options: ["MD4", "sha512crypt", "CRC32", "ROT13"],
+        correctAnswer: "sha512crypt",
+      },
+    ],
+  },
+};
+
+function resolveMockLesson(lessonId: string): MockLesson | null {
+  if (mockLessons[lessonId]) return mockLessons[lessonId];
+
+  const id = lessonId.toLowerCase();
+  if (
+    id.includes("subnet") ||
+    id.includes("routing") ||
+    id.includes("cidr") ||
+    id.includes("vlan") ||
+    id.includes("net-")
+  ) {
+    return { ...mockLessons["net-class-c"], id: lessonId };
+  }
+  if (
+    id.includes("cyber") ||
+    id.includes("suid") ||
+    id.includes("hack") ||
+    id.includes("overflow") ||
+    id.includes("hash") ||
+    id.includes("buffer")
+  ) {
+    return { ...mockLessons["cyber-suid"], id: lessonId };
+  }
+  if (id.includes("python") || id.includes("file") || id.includes("loop")) {
+    if (id.includes("file")) {
+      return { ...mockLessons["python-file-io"], id: lessonId };
+    }
+    if (id.includes("control") || id.includes("loop")) {
+      return { ...mockLessons["python-control-flow"], id: lessonId };
+    }
+    return { ...mockLessons["python-helloworld"], id: lessonId };
+  }
+  return null;
+}
 
 export default function LessonViewer() {
   const params = useParams();
   const router = useRouter();
   const lessonId = params.id as string;
-  const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
   // Page States
   const [lesson, setLesson] = useState<any>(null);
+  const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedQuizAnswer, setSelectedQuizAnswer] = useState("");
   const [quizStatus, setQuizStatus] = useState<
@@ -175,111 +508,42 @@ export default function LessonViewer() {
   const [cyberFlagInput, setCyberFlagInput] = useState("");
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
-  // Mock Lesson Fallbacks
-  const mockLessons: Record<string, any> = {
-    "python-helloworld": {
-      id: "python-helloworld",
-      title: "The Hello World Executable",
-      type: "CODING_LAB",
-      content: `# Hello World in Python\n\nWelcome to your first programming lab! Python is an interpreted, high-level programming language known for its readability.\n\n### Today's Mission:\nYour goal is to write a script that outputs the text \`Hello, StudyAI!\` to the console.\n\n### Syntax Hint:\n\`\`\`python\nprint("Your text here")\n\`\`\`\n`,
-      labConfig: {
-        starterCode: "# Write your Python code below\nprint('Hello')",
-        solution: "print('Hello, StudyAI!')",
-      },
-      quizzes: [
-        {
-          id: "q1",
-          question:
-            "Which built-in Python function writes text to the standard console output?",
-          options: ["echo()", "printf()", "print()", "system.out()"],
-          correctAnswer: "print()",
-        },
-      ],
-    },
-    "net-class-c": {
-      id: "net-class-c",
-      title: "Splitting Class C Subnets",
-      type: "NETWORKING_LAB",
-      content: `# Class C Subnetwork Design\n\nSubnetting divides a single network range into smaller isolated pieces (subnets) to restrict broadcast traffic and improve IP management.\n\n### Today's Mission:\nYou need to segment the IP range \`192.168.1.0/24\` to yield at least 4 subnet blocks.\n\n1. Review the connection nodes on the topology canvas.\n2. Configure the subnetwork boundaries to accommodate these divisions.\n3. Input the required subnet mask in the configuration panel below.\n`,
-      labConfig: {
-        networkRange: "192.168.1.0/24",
-        requiredSubnets: 4,
-        targetMask: "255.255.255.192",
-      },
-      quizzes: [
-        {
-          id: "q2",
-          question:
-            "What is the subnet mask representation of a /26 prefix block?",
-          options: [
-            "255.255.255.0",
-            "255.255.255.192",
-            "255.255.255.240",
-            "255.255.255.252",
-          ],
-          correctAnswer: "255.255.255.192",
-        },
-      ],
-    },
-    "cyber-suid": {
-      id: "cyber-suid",
-      title: "Exploiting SUID Binaries",
-      type: "CYBER_LAB",
-      content: `# Linux SUID Privilege Escalation\n\nSUID (Set owner User ID upon execution) is a special type of file permission in Unix-like OS that permits users to run files with the permissions of the file owner.\n\n### Today's Mission:\n1. Inspect the \`/bin/vuln-helper\` executable in the terminal.\n2. Notice the SUID bit is set for the root owner.\n3. Trigger the helper binary using a buffer overflow to read the root flag file at \`/root/flag.txt\`.\n`,
-      labConfig: {
-        flag: "studyai{suid_priv_escalation_success}",
-        environmentImage: "alpine-suid-vuln",
-      },
-      quizzes: [
-        {
-          id: "q3",
-          question:
-            "Which chmod permission code sets the SUID bit on an executable?",
-          options: ["chmod 777", "chmod +x", "chmod u+s", "chmod g+s"],
-          correctAnswer: "chmod u+s",
-        },
-      ],
-    },
-  };
-
-  // Fetch lesson data
+  // Fetch lesson data (auth required — unauthenticated fetch always fell back to Hello World)
   useEffect(() => {
     async function fetchLesson() {
+      setLoading(true);
+      setLoadError("");
       try {
-        const res = await fetch(`${API_BASE}/lessons/${lessonId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setLesson(data);
-          if (data.type === "CODING_LAB" && data.labConfig) {
-            setCode(data.labConfig.starterCode || "# Write code here");
-          }
-          setLoading(false);
-          return;
+        const data = await apiFetch<any>(`/lessons/${lessonId}`);
+        setLesson(data);
+        if (data.type === "CODING_LAB" && data.labConfig) {
+          setCode(
+            data.labConfig.starterCode ||
+              "# Write code here\nprint('Hello, StudyAI!')",
+          );
         }
+        setLoading(false);
+        return;
       } catch (err) {
-        console.warn("API offline, falling back to mock lesson.");
+        console.warn(
+          "Lesson API unavailable, trying offline mock catalog.",
+          err,
+        );
       }
 
-      // Offline mock mapping fallback
-      let mockKey = "python-helloworld";
-      if (
-        lessonId.includes("subnet") ||
-        lessonId.includes("routing") ||
-        lessonId === "net-class-c"
-      ) {
-        mockKey = "net-class-c";
-      } else if (
-        lessonId.includes("cyber") ||
-        lessonId.includes("hacking") ||
-        lessonId === "cyber-suid"
-      ) {
-        mockKey = "cyber-suid";
+      const mockData = resolveMockLesson(lessonId);
+      if (!mockData) {
+        setLesson(null);
+        setLoadError(
+          "This lesson could not be loaded. Open it from your course syllabus, or check that you are signed in.",
+        );
+        setLoading(false);
+        return;
       }
 
-      const mockData = mockLessons[mockKey];
       setLesson(mockData);
       if (mockData.type === "CODING_LAB") {
-        setCode(mockData.labConfig.starterCode);
+        setCode(String(mockData.labConfig.starterCode || "# Write code here"));
       }
       setLoading(false);
     }
@@ -304,6 +568,24 @@ export default function LessonViewer() {
     );
   }
 
+  if (loadError || !lesson) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[#030303] px-6 text-white">
+        <AlertTriangle className="h-10 w-10 text-amber-400" />
+        <p className="max-w-md text-center text-sm text-zinc-300">
+          {loadError || "Lesson not found."}
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="rounded-xl border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-200 hover:border-zinc-500"
+        >
+          Back to dashboard
+        </button>
+      </div>
+    );
+  }
+
   // Quiz evaluation
   const handleQuizVerify = async () => {
     if (!selectedQuizAnswer) return;
@@ -311,19 +593,18 @@ export default function LessonViewer() {
     if (!currentQuiz) return;
 
     try {
-      const res = await fetch(`${API_BASE}/lessons/${lesson.id}/verify-quiz`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          questionId: currentQuiz.id,
-          answer: selectedQuizAnswer,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setQuizStatus(data.isCorrect ? "correct" : "incorrect");
-        return;
-      }
+      const data = await apiFetch<{ isCorrect: boolean }>(
+        `/lessons/${lesson.id}/verify-quiz`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            questionId: currentQuiz.id,
+            answer: selectedQuizAnswer,
+          }),
+        },
+      );
+      setQuizStatus(data.isCorrect ? "correct" : "incorrect");
+      return;
     } catch (err) {
       console.warn("API offline, verifying locally.");
     }
@@ -365,37 +646,44 @@ export default function LessonViewer() {
     setLabLogs("Submitting code to secure test-runner...\n");
 
     try {
-      const res = await fetch(`${API_BASE}/lessons/${lesson.id}/submit-lab`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: "student-1", submission: { code } }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLabStatus(data.status === "SUCCESS" ? "success" : "failed");
-        setLabLogs(data.logs);
-        if (data.status === "SUCCESS") setCompleted(true);
-        return;
-      }
+      const data = await apiFetch<{ status: string; logs: string }>(
+        `/lessons/${lesson.id}/submit-lab`,
+        {
+          method: "POST",
+          body: JSON.stringify({ submission: { code } }),
+        },
+      );
+      setLabStatus(data.status === "SUCCESS" ? "success" : "failed");
+      setLabLogs(data.logs);
+      if (data.status === "SUCCESS") setCompleted(true);
+      return;
     } catch (err) {
       console.warn("API offline, submitting locally.");
     }
 
-    // Local validation fallback
+    // Local validation fallback — match this lesson's solution, not Hello World
     setTimeout(() => {
+      const expected = String(lesson?.labConfig?.solution || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const normalized = code.replace(/\s+/g, " ").trim();
       const isSuccess =
-        code.includes("print('Hello, StudyAI!')") ||
-        code.includes('print("Hello, StudyAI!")');
+        Boolean(expected) &&
+        (normalized.includes(expected) ||
+          normalized === expected ||
+          (expected.includes("Hello, StudyAI") &&
+            (code.includes("print('Hello, StudyAI!')") ||
+              code.includes('print("Hello, StudyAI!")'))));
       if (isSuccess) {
         setLabStatus("success");
         setLabLogs(
-          "Test Case 1: print('Hello, StudyAI!') -> Passed.\n\nAll tests completed. Score: 100/100",
+          "Local checks passed.\n\nAll tests completed. Score: 100/100",
         );
         setCompleted(true);
       } else {
         setLabStatus("failed");
         setLabLogs(
-          "Test Case 1: print('Hello, StudyAI!') -> Failed.\nActual output was incorrect or missing.",
+          "Local checks failed. Compare your code to the mission requirements.",
         );
       }
     }, 800);
@@ -408,28 +696,27 @@ export default function LessonViewer() {
     setLabLogs("Validating route boundaries...\n");
 
     try {
-      const res = await fetch(`${API_BASE}/lessons/${lesson.id}/submit-lab`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: "student-1",
-          submission: { mask: subnetMask },
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLabStatus(data.status === "SUCCESS" ? "success" : "failed");
-        setLabLogs(data.logs);
-        if (data.status === "SUCCESS") setCompleted(true);
-        return;
-      }
+      const data = await apiFetch<{ status: string; logs: string }>(
+        `/lessons/${lesson.id}/submit-lab`,
+        {
+          method: "POST",
+          body: JSON.stringify({ submission: { mask: subnetMask } }),
+        },
+      );
+      setLabStatus(data.status === "SUCCESS" ? "success" : "failed");
+      setLabLogs(data.logs);
+      if (data.status === "SUCCESS") setCompleted(true);
+      return;
     } catch (err) {
       console.warn("API offline, submitting locally.");
     }
 
     // Local validation fallback
     setTimeout(() => {
-      const isSuccess = subnetMask.trim() === "255.255.255.192";
+      const expectedMask = String(
+        lesson?.labConfig?.targetMask || "255.255.255.192",
+      );
+      const isSuccess = subnetMask.trim() === expectedMask;
       if (isSuccess) {
         setLabStatus("success");
         setLabLogs(
@@ -543,21 +830,17 @@ export default function LessonViewer() {
     setLabLogs("Verifying flag hash...\n");
 
     try {
-      const res = await fetch(`${API_BASE}/lessons/${lesson.id}/submit-lab`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: "student-1",
-          submission: { flag: cyberFlagInput },
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLabStatus(data.status === "SUCCESS" ? "success" : "failed");
-        setLabLogs(data.logs);
-        if (data.status === "SUCCESS") setCompleted(true);
-        return;
-      }
+      const data = await apiFetch<{ status: string; logs: string }>(
+        `/lessons/${lesson.id}/submit-lab`,
+        {
+          method: "POST",
+          body: JSON.stringify({ submission: { flag: cyberFlagInput } }),
+        },
+      );
+      setLabStatus(data.status === "SUCCESS" ? "success" : "failed");
+      setLabLogs(data.logs);
+      if (data.status === "SUCCESS") setCompleted(true);
+      return;
     } catch (err) {
       console.warn("API offline, verifying flag locally.");
     }
