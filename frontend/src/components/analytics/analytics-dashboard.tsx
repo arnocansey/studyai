@@ -84,7 +84,12 @@ export function AnalyticsDashboard() {
             apiFetch<{
               studyConsistency?: number;
               comparisonToAverage?: number;
-            }>("/analytics/insights").catch(() => ({})),
+            }>("/analytics/insights").catch(
+              (): {
+                studyConsistency?: number;
+                comparisonToAverage?: number;
+              } => ({}),
+            ),
             apiFetch<{ xp: number; level: number }>(
               "/gamification/xp-progress",
             ).catch(() => ({

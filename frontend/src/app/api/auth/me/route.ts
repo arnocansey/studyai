@@ -61,8 +61,21 @@ export async function GET(req: NextRequest) {
       return response;
     }
 
-    token = refreshData.accessToken;
-    const meRes = await fetchMe(token);
+    const accessToken =
+      typeof refreshData.accessToken === "string"
+        ? refreshData.accessToken
+        : null;
+    if (!accessToken) {
+      const response = NextResponse.json(
+        { message: "Refresh did not return an access token" },
+        { status: 401 },
+      );
+      clearAuthCookies(response);
+      return response;
+    }
+
+    token = accessToken;
+    const meRes = await fetchMe(accessToken);
     const meData = await meRes.json();
     if (!meRes.ok) {
       const response = NextResponse.json(meData, { status: meRes.status });
@@ -72,19 +85,16 @@ export async function GET(req: NextRequest) {
 
     const response = NextResponse.json({
       ...meData,
-      accessToken: token,
+      accessToken,
     });
     setAuthCookies(response, refreshData);
-    // Keep access cookie in sync if getRequestToken used Authorization header only
-    if (token) {
-      response.cookies.set(AUTH_COOKIE, token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 30,
-      });
-    }
+    response.cookies.set(AUTH_COOKIE, accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
     return response;
   } catch {
     return NextResponse.json(
