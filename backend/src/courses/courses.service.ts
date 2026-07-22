@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
@@ -372,7 +373,12 @@ export class CoursesService {
         content: data.content,
         type: data.type,
         order: data.order,
-        labConfig: data.labConfig === undefined ? undefined : data.labConfig,
+        labConfig:
+          data.labConfig === undefined
+            ? undefined
+            : data.labConfig === null
+              ? Prisma.DbNull
+              : (data.labConfig as Prisma.InputJsonValue),
       },
     });
   }
