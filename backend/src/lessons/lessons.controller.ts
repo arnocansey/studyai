@@ -76,8 +76,13 @@ export class LessonsController {
   reviewSubmission(
     @Param("submissionId") submissionId: string,
     @Body() dto: ReviewSubmissionDto,
+    @Request() req: any,
   ) {
-    return this.lessonsService.reviewLabSubmission(submissionId, dto.status);
+    return this.lessonsService.reviewLabSubmission(
+      submissionId,
+      dto.status,
+      req.user.id,
+    );
   }
 
   @Get(":id")

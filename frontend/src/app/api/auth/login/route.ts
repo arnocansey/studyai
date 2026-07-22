@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_COOKIE, authCookieOptions } from "@/lib/auth-cookie";
+import { setAuthCookies } from "@/lib/auth-cookie";
 import { BACKEND_URL } from "@/lib/backend-proxy";
 
 export async function POST(req: NextRequest) {
@@ -7,7 +7,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const res = await fetch(`${BACKEND_URL}/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": req.headers.get("user-agent") || "",
+      },
       body: JSON.stringify(body),
       cache: "no-store",
     });
@@ -21,11 +24,7 @@ export async function POST(req: NextRequest) {
       user: data.user,
       accessToken: data.accessToken,
     });
-
-    if (data.accessToken) {
-      response.cookies.set(AUTH_COOKIE, data.accessToken, authCookieOptions);
-    }
-
+    setAuthCookies(response, data);
     return response;
   } catch {
     return NextResponse.json({ message: "Login failed" }, { status: 500 });

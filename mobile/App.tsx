@@ -2,14 +2,9 @@ import React, { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import {
-  Text,
-  View,
-  ActivityIndicator,
-  StyleSheet,
-  Linking,
-} from "react-native";
+import { Text, View, ActivityIndicator, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
 
 // Providers
 import { UserProvider, useUser } from "./src/context/UserContext";
@@ -39,6 +34,7 @@ import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { CourseDetailScreen } from "./src/screens/CourseDetailScreen";
 import { LessonScreen } from "./src/screens/LessonScreen";
 import { StudyPlanScreen } from "./src/screens/StudyPlanScreen";
+import { PlaygroundScreen } from "./src/screens/PlaygroundScreen";
 
 // Types
 type RootStackParamList = {
@@ -53,6 +49,7 @@ type RootStackParamList = {
   CourseDetail: { slug: string };
   Lesson: { lessonId: string; courseTitle?: string; lessonTitle?: string };
   StudyPlan: undefined;
+  Playground: undefined;
 };
 
 type TabParamList = {
@@ -66,22 +63,16 @@ type TabParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
-  Dashboard: { active: "🏠", inactive: "🏡" },
-  Gamification: { active: "🏆", inactive: "🥇" },
-  Challenges: { active: "🎯", inactive: "🏹" },
-  Social: { active: "👥", inactive: "👤" },
-  Profile: { active: "🧑‍💻", inactive: "👤" },
+const TAB_ICON_NAMES: Record<
+  keyof TabParamList,
+  keyof typeof Ionicons.glyphMap
+> = {
+  Dashboard: "home",
+  Gamification: "trophy",
+  Challenges: "flash",
+  Social: "people",
+  Profile: "person",
 };
-
-function TabIcon({ name, focused }: { name: string; focused: boolean }) {
-  const iconSet = TAB_ICONS[name] || { active: "📌", inactive: "📌" };
-  return (
-    <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>
-      {focused ? iconSet.active : iconSet.inactive}
-    </Text>
-  );
-}
 
 function MainTabs() {
   const { colors } = useTheme();
@@ -90,17 +81,15 @@ function MainTabs() {
       id="MainTabs"
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.mutedForeground,
         tabBarStyle: {
           backgroundColor: colors.card,
-          borderTopWidth: 0,
-          elevation: 20,
-          shadowColor: colors.accent,
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.15,
-          shadowRadius: 20,
-          height: 85,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.border,
+          elevation: 0,
+          shadowOpacity: 0,
+          height: 84,
           paddingBottom: 22,
           paddingTop: 8,
         },
@@ -109,8 +98,16 @@ function MainTabs() {
           fontWeight: "600",
           marginTop: 2,
         },
-        tabBarIcon: ({ focused }) => (
-          <TabIcon name={route.name} focused={focused} />
+        tabBarIcon: ({ focused, color, size }) => (
+          <Ionicons
+            name={
+              focused
+                ? TAB_ICON_NAMES[route.name as keyof TabParamList]
+                : (`${TAB_ICON_NAMES[route.name as keyof TabParamList]}-outline` as keyof typeof Ionicons.glyphMap)
+            }
+            size={size ?? 22}
+            color={color}
+          />
         ),
       })}
     >
@@ -138,6 +135,7 @@ const linking = {
       CourseDetail: "course/:slug",
       Lesson: "lesson/:lessonId",
       StudyPlan: "study-plan",
+      Playground: "playground",
     },
   },
 };
@@ -172,17 +170,18 @@ function AppContent() {
 
   if (isLoading) {
     return (
-      <View style={[styles.splash, { backgroundColor: colors.bg }]}>
+      <View style={[styles.splash, { backgroundColor: colors.background }]}>
         <StatusBar style={isDark ? "light" : "dark"} />
-        <Text style={styles.splashIcon}>🎓</Text>
-        <Text style={[styles.splashTitle, { color: colors.text }]}>
-          Study<Text style={{ color: colors.accent }}>AI</Text>
+        <Text style={[styles.splashBrand, { color: colors.foreground }]}>
+          Study<Text style={{ color: colors.primary }}>AI</Text>
         </Text>
-        <Text style={[styles.splashSubtitle, { color: colors.textMuted }]}>
+        <Text
+          style={[styles.splashSubtitle, { color: colors.mutedForeground }]}
+        >
           Interactive Tech Education
         </Text>
         <View style={styles.splashLoader}>
-          <ActivityIndicator size="large" color={colors.accent} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </View>
     );
@@ -250,6 +249,11 @@ function AppContent() {
               component={StudyPlanScreen}
               options={{ animation: "slide_from_right" }}
             />
+            <Stack.Screen
+              name="Playground"
+              component={PlaygroundScreen}
+              options={{ animation: "slide_from_right" }}
+            />
           </>
         )}
       </Stack.Navigator>
@@ -277,8 +281,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  splashIcon: { fontSize: 64, marginBottom: 16 },
-  splashTitle: { fontSize: 36, fontWeight: "800", letterSpacing: -1 },
-  splashSubtitle: { fontSize: 14, marginTop: 8, letterSpacing: 2 },
+  splashBrand: { fontSize: 40, fontWeight: "800", letterSpacing: -1 },
+  splashSubtitle: { fontSize: 13, marginTop: 10, letterSpacing: 1.2 },
   splashLoader: { marginTop: 40 },
 });

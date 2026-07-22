@@ -18,6 +18,8 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { CollaborativeModule } from "./collaborative/collaborative.module";
 import { VideoModule } from "./video/video.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
+import { OpsModule } from "./ops/ops.module";
+import { QueuesModule } from "./queues/queues.module";
 
 @Module({
   imports: [
@@ -35,6 +37,7 @@ import { AnalyticsModule } from "./analytics/analytics.module";
       inject: [ConfigService],
     }),
     PrismaModule,
+    QueuesModule,
     AuthModule,
     CoursesModule,
     LessonsModule,
@@ -48,6 +51,7 @@ import { AnalyticsModule } from "./analytics/analytics.module";
     CollaborativeModule,
     VideoModule,
     AnalyticsModule,
+    OpsModule,
   ],
   controllers: [AppController],
   providers: [

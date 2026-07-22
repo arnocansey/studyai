@@ -1,6 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authApi, UserProfile } from '../services/auth';
-import { loadAuthToken } from '../services/api';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { authApi, UserProfile } from "../services/auth";
+import { loadAuthToken } from "../services/api";
 
 export interface UserData {
   id: string;
@@ -29,11 +35,11 @@ interface UserContextType {
 }
 
 const DEFAULT_USER: UserData = {
-  id: '',
-  name: 'Student',
-  email: '',
-  bio: 'Full-stack developer in training. Love building things with code!',
-  avatar: '🧑‍💻',
+  id: "",
+  name: "Student",
+  email: "",
+  bio: "Full-stack developer in training. Love building things with code!",
+  avatar: "🧑‍💻",
   xp: 0,
   level: 1,
   streak: 0,
@@ -41,7 +47,7 @@ const DEFAULT_USER: UserData = {
   badges: 0,
   avgScore: 0,
   joinDate: new Date().toISOString(),
-  role: 'STUDENT',
+  role: "STUDENT",
 };
 
 const UserContext = createContext<UserContextType>({
@@ -77,7 +83,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           }));
           setIsAuthenticated(true);
         } catch {
-          authApi.logout();
+          void authApi.logout();
         }
       }
       setIsLoading(false);
@@ -109,7 +115,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    authApi.logout();
+    void authApi.logout();
     setUser(DEFAULT_USER);
     setIsAuthenticated(false);
   };
@@ -119,7 +125,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <UserContext.Provider value={{ user, updateUser, login, signup, logout, isLoading, isAuthenticated }}>
+    <UserContext.Provider
+      value={{
+        user,
+        updateUser,
+        login,
+        signup,
+        logout,
+        isLoading,
+        isAuthenticated,
+      }}
+    >
       {children}
     </UserContext.Provider>
   );

@@ -67,14 +67,14 @@ export class UsersService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true },
+      select: { id: true, email: true, role: true },
     });
 
     if (!user) {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: { role },
       select: {
@@ -90,6 +90,23 @@ export class UsersService {
         deletedAt: true,
       },
     });
+
+    if (user.role !== role) {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: actorUserId,
+          action: "ROLE_CHANGE",
+          details: {
+            targetUserId: userId,
+            targetEmail: user.email,
+            from: user.role,
+            to: role,
+          },
+        },
+      });
+    }
+
+    return updated;
   }
 
   async findOrCreateUserByEmail(email: string, name?: string) {

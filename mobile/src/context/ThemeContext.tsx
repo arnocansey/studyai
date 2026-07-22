@@ -1,47 +1,25 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from "react";
+import {
+  DARK_COLORS,
+  LIGHT_COLORS,
+  ThemeColors,
+  radius,
+} from "../theme/tokens";
 
-export interface ThemeColors {
-  bg: string;
-  card: string;
-  border: string;
-  text: string;
-  textSecondary: string;
-  textMuted: string;
-  accent: string;
-  accentLight: string;
-}
-
-const DARK: ThemeColors = {
-  bg: '#030303',
-  card: '#111111',
-  border: '#1F1F1F',
-  text: '#FFFFFF',
-  textSecondary: '#D1D5DB',
-  textMuted: '#9CA3AF',
-  accent: '#7C3AED',
-  accentLight: '#A78BFA',
-};
-
-const LIGHT: ThemeColors = {
-  bg: '#F9FAFB',
-  card: '#FFFFFF',
-  border: '#E5E7EB',
-  text: '#111827',
-  textSecondary: '#374151',
-  textMuted: '#6B7280',
-  accent: '#7C3AED',
-  accentLight: '#6D28D9',
-};
+export type { ThemeColors };
+export { radius };
 
 interface ThemeContextType {
   isDark: boolean;
   colors: ThemeColors;
+  radius: typeof radius;
   toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   isDark: true,
-  colors: DARK,
+  colors: DARK_COLORS,
+  radius,
   toggleTheme: () => {},
 });
 
@@ -53,7 +31,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ isDark, colors: isDark ? DARK : LIGHT, toggleTheme }}>
+    <ThemeContext.Provider
+      value={{
+        isDark,
+        colors: isDark ? DARK_COLORS : LIGHT_COLORS,
+        radius,
+        toggleTheme,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

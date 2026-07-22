@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -14,6 +13,8 @@ import { useTheme } from "../context/ThemeContext";
 import { aiApi, StudyPlan } from "../services/ai";
 import { haptics } from "../services/haptics";
 import { FadeInView } from "../components/animations";
+import { Badge, Button, Input } from "../components/ui";
+import { Ionicons } from "@expo/vector-icons";
 
 type Level = "beginner" | "intermediate" | "advanced";
 
@@ -87,7 +88,7 @@ export function StudyPlanScreen({ navigation }: any) {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.bg }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
       <ScrollView
@@ -99,17 +100,21 @@ export function StudyPlanScreen({ navigation }: any) {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             accessibilityRole="button"
+            style={styles.backRow}
           >
-            <Text style={[styles.back, { color: colors.accent }]}>‹ Back</Text>
+            <Ionicons name="chevron-back" size={22} color={colors.primary} />
+            <Text style={[styles.back, { color: colors.primary }]}>Back</Text>
           </TouchableOpacity>
         </View>
 
         <FadeInView>
-          <Text style={[styles.eyebrow, { color: colors.accent }]}>
-            AI COACH
+          <View style={{ marginHorizontal: 16, marginTop: 12 }}>
+            <Badge>AI Coach</Badge>
+          </View>
+          <Text style={[styles.title, { color: colors.foreground }]}>
+            Study Plan
           </Text>
-          <Text style={[styles.title, { color: colors.text }]}>Study Plan</Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
             Generate a structured weekly plan. New plans are saved
             automatically.
           </Text>
@@ -121,24 +126,19 @@ export function StudyPlanScreen({ navigation }: any) {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          <Text style={[styles.label, { color: colors.textMuted }]}>GOAL</Text>
-          <TextInput
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>
+            GOAL
+          </Text>
+          <Input
             value={goal}
             onChangeText={setGoal}
             multiline
-            style={[
-              styles.input,
-              styles.textarea,
-              {
-                color: colors.text,
-                borderColor: colors.border,
-                backgroundColor: colors.bg,
-              },
-            ]}
-            placeholderTextColor={colors.textMuted}
+            style={styles.textarea}
           />
 
-          <Text style={[styles.label, { color: colors.textMuted }]}>LEVEL</Text>
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>
+            LEVEL
+          </Text>
           <View style={styles.levelRow}>
             {(["beginner", "intermediate", "advanced"] as Level[]).map(
               (item) => (
@@ -149,14 +149,17 @@ export function StudyPlanScreen({ navigation }: any) {
                     styles.levelChip,
                     { borderColor: colors.border },
                     level === item && {
-                      backgroundColor: colors.accent,
-                      borderColor: colors.accent,
+                      backgroundColor: colors.primary,
+                      borderColor: colors.primary,
                     },
                   ]}
                 >
                   <Text
                     style={{
-                      color: level === item ? "#fff" : colors.text,
+                      color:
+                        level === item
+                          ? colors.primaryForeground
+                          : colors.foreground,
                       fontSize: 12,
                       fontWeight: "600",
                     }}
@@ -168,60 +171,34 @@ export function StudyPlanScreen({ navigation }: any) {
             )}
           </View>
 
-          <Text style={[styles.label, { color: colors.textMuted }]}>
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>
             HOURS / WEEK
           </Text>
-          <TextInput
+          <Input
             value={weeklyHours}
             onChangeText={setWeeklyHours}
             keyboardType="number-pad"
-            style={[
-              styles.input,
-              {
-                color: colors.text,
-                borderColor: colors.border,
-                backgroundColor: colors.bg,
-              },
-            ]}
           />
 
-          <Text style={[styles.label, { color: colors.textMuted }]}>
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>
             FOCUS AREAS
           </Text>
-          <TextInput
+          <Input
             value={focusAreas}
             onChangeText={setFocusAreas}
-            style={[
-              styles.input,
-              {
-                color: colors.text,
-                borderColor: colors.border,
-                backgroundColor: colors.bg,
-              },
-            ]}
             placeholder="Comma-separated topics"
-            placeholderTextColor={colors.textMuted}
           />
 
-          <TouchableOpacity
-            style={[
-              styles.generateBtn,
-              { backgroundColor: colors.accent, opacity: generating ? 0.7 : 1 },
-            ]}
-            onPress={generate}
-            disabled={generating}
-          >
-            <Text style={styles.generateText}>
-              {generating ? "Generating…" : "Generate plan"}
-            </Text>
-          </TouchableOpacity>
+          <Button onPress={generate} loading={generating} size="lg">
+            Generate plan
+          </Button>
         </View>
 
         {loadingLatest ? (
-          <ActivityIndicator style={{ marginTop: 24 }} color={colors.accent} />
+          <ActivityIndicator style={{ marginTop: 24 }} color={colors.primary} />
         ) : plan ? (
           <FadeInView delay={100}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
               Your plan
             </Text>
             {plan.milestones?.length > 0 && (
@@ -231,13 +208,13 @@ export function StudyPlanScreen({ navigation }: any) {
                   { backgroundColor: colors.card, borderColor: colors.border },
                 ]}
               >
-                <Text style={[styles.cardTitle, { color: colors.text }]}>
+                <Text style={[styles.cardTitle, { color: colors.foreground }]}>
                   Milestones
                 </Text>
                 {plan.milestones.map((item, i) => (
                   <Text
                     key={i}
-                    style={[styles.bullet, { color: colors.textMuted }]}
+                    style={[styles.bullet, { color: colors.mutedForeground }]}
                   >
                     • {item}
                   </Text>
@@ -252,19 +229,19 @@ export function StudyPlanScreen({ navigation }: any) {
                   { backgroundColor: colors.card, borderColor: colors.border },
                 ]}
               >
-                <Text style={[styles.cardTitle, { color: colors.text }]}>
+                <Text style={[styles.cardTitle, { color: colors.foreground }]}>
                   Week {week.week}: {week.theme}
                 </Text>
                 {week.objectives?.map((obj, i) => (
                   <Text
                     key={`o-${i}`}
-                    style={[styles.bullet, { color: colors.textMuted }]}
+                    style={[styles.bullet, { color: colors.mutedForeground }]}
                   >
                     • {obj}
                   </Text>
                 ))}
                 {week.deliverable ? (
-                  <Text style={[styles.deliverable, { color: colors.accent }]}>
+                  <Text style={[styles.deliverable, { color: colors.primary }]}>
                     Deliverable: {week.deliverable}
                   </Text>
                 ) : null}
@@ -272,7 +249,7 @@ export function StudyPlanScreen({ navigation }: any) {
             ))}
           </FadeInView>
         ) : (
-          <Text style={[styles.empty, { color: colors.textMuted }]}>
+          <Text style={[styles.empty, { color: colors.mutedForeground }]}>
             No saved plan yet. Generate one above.
           </Text>
         )}
@@ -285,17 +262,11 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { paddingBottom: 48 },
   header: { paddingHorizontal: 16, paddingTop: 8 },
+  backRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   back: { fontSize: 17, fontWeight: "600" },
-  eyebrow: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 2,
-  },
   title: {
     marginHorizontal: 16,
-    marginTop: 6,
+    marginTop: 10,
     fontSize: 28,
     fontWeight: "800",
   },
@@ -311,6 +282,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
+    gap: 4,
   },
   label: {
     fontSize: 11,
@@ -318,13 +290,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 12,
     marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
   },
   textarea: { minHeight: 90, textAlignVertical: "top" },
   levelRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
@@ -334,13 +299,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  generateBtn: {
-    marginTop: 18,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  generateText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   sectionTitle: {
     marginHorizontal: 16,
     marginTop: 28,

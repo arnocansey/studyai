@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -104,42 +104,131 @@ Keep your explanations under 150 words. Format with clean markdown.`;
 
   async socraticTutor(
     messages: TutorMessage[],
-    topic?: string,
-    userId?: string,
-  ): Promise<{ response: string; followUp: string; hint: string }> {
-    const apiKey = this.configService.get<string>("GEMINI_API_KEY");
+    topic: string | undefined,
+    userId: string,
+    options?: { conversationId?: string; lessonId?: string },
+  ): Promise<{
+    response: string;
+    followUp: string;
+    hint: string;
+    conversationId: string;
+  }> {
+    const lessonContext = options?.lessonId
+      ? await this.loadLessonContext(options.lessonId)
+      : null;
 
-    if (!apiKey) {
-      return this.getLocalSocraticResponse(messages);
+    const conversation = await this.resolveConversation({
+      userId,
+      conversationId: options?.conversationId,
+      lessonId: options?.lessonId,
+      topic: topic || lessonContext?.title,
+      title: lessonContext
+        ? `Mentor · ${lessonContext.title}`
+        : topic
+          ? `Mentor · ${topic}`
+          : "Mentor chat",
+    });
+
+    const historyFromDb = conversation.messages.map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+
+    const incoming = messages.length > 0 ? messages : historyFromDb;
+    const lastUser = [...incoming].reverse().find((m) => m.role === "user");
+
+    // Prefer client-sent transcript; fall back to DB history.
+    const transcript =
+      incoming.length > 0
+        ? incoming
+        : historyFromDb.length > 0
+          ? historyFromDb
+          : lastUser
+            ? [lastUser]
+            : [];
+
+    const topicLabel =
+      topic || lessonContext?.title || conversation.topic || undefined;
+
+    const apiKey = this.configService.get<string>("GEMINI_API_KEY");
+    const parsed = apiKey
+      ? await this.callSocraticGemini(transcript, topicLabel, lessonContext)
+      : await this.getLocalSocraticResponse(transcript);
+
+    if (lastUser) {
+      const alreadySaved = historyFromDb.some(
+        (m) => m.role === "user" && m.content === lastUser.content,
+      );
+      if (!alreadySaved) {
+        await this.prisma.aiMessage.create({
+          data: {
+            conversationId: conversation.id,
+            role: "user",
+            content: lastUser.content,
+          },
+        });
+      }
     }
 
+    await this.prisma.aiMessage.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: parsed.response,
+        meta: { followUp: parsed.followUp, hint: parsed.hint },
+      },
+    });
+
+    await this.prisma.aiConversation.update({
+      where: { id: conversation.id },
+      data: { updatedAt: new Date() },
+    });
+
+    await this.trackTutorInteraction(userId);
+
+    return { ...parsed, conversationId: conversation.id };
+  }
+
+  private async callSocraticGemini(
+    messages: TutorMessage[],
+    topic: string | undefined,
+    lessonContext: { title: string; type: string; content: string } | null,
+  ): Promise<{ response: string; followUp: string; hint: string }> {
+    const apiKey = this.configService.get<string>("GEMINI_API_KEY")!;
+
     try {
-      const systemInstruction = `You are StudyAI's Socratic Tutor — an AI that guides students to discover answers themselves rather than giving direct answers.
+      const lessonBlock = lessonContext
+        ? `\n\n## Lesson context\nTitle: ${lessonContext.title}\nType: ${lessonContext.type}\nExcerpt:\n${lessonContext.content.slice(0, 2500)}`
+        : "";
 
-## Your Teaching Method:
-1. **Never give the answer directly** — ask guiding questions instead
-2. **Break complex problems** into smaller, manageable steps
-3. **Provide hints** that lead toward the solution without revealing it
-4. **Celebrate small wins** when the student makes progress
-5. **Adapt difficulty** based on the student's demonstrated understanding
+      const systemInstruction = `You are StudyAI's Socratic Mentor — guide students to discover answers themselves rather than giving direct answers.
 
-## Response Format:
-- Main response: Guide the student with questions and encouragement
-- Follow-up: A specific question to check understanding
-- Hint: A gentle nudge if they're stuck (only if they've tried)
+## Teaching method:
+1. Never give the answer directly — ask guiding questions
+2. Break complex problems into smaller steps
+3. Provide hints that lead toward the solution
+4. Celebrate progress
+5. Adapt to the student's demonstrated understanding
 
-## Rules:
-- Keep responses concise (under 100 words for main response)
-- Use markdown for code examples when helpful
-- If the student asks directly for the answer, redirect them: "Let's figure this out together. What do you think the first step might be?"
-- Track conversation context and build on previous questions
+## Response format (plain text with labels):
+- Main response first
+- Follow-up: a check question
+- Hint: a gentle nudge
 
-Student${topic ? ` learning about ${topic}` : ""}:`;
+Keep the main response under 120 words. Use markdown sparingly for code.
+${topic ? `Student is learning about: ${topic}.` : ""}${lessonBlock}`;
 
       const conversationHistory = messages.map((m) => ({
         role: m.role === "user" ? "user" : "model",
         parts: [{ text: m.content }],
       }));
+
+      if (conversationHistory.length === 0) {
+        conversationHistory.push({
+          role: "user",
+          parts: [{ text: "Help me get started with this lesson." }],
+        });
+      }
 
       const response = await fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
@@ -162,23 +251,14 @@ Student${topic ? ` learning about ${topic}` : ""}:`;
 
       const data = await response.json();
       const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
       if (!textResponse) {
         throw new Error("Invalid response structure");
       }
 
-      // Parse the structured response
-      const parsed = this.parseSocraticResponse(textResponse);
-
-      // Track conversation for XP
-      if (userId) {
-        await this.trackTutorInteraction(userId);
-      }
-
-      return parsed;
+      return this.parseSocraticResponse(textResponse);
     } catch (error) {
       this.logger.error(`Socratic tutor error: ${error.message}`);
-      return this.getLocalSocraticResponse(messages);
+      return await this.getLocalSocraticResponse(messages);
     }
   }
 
@@ -215,9 +295,90 @@ Student${topic ? ` learning about ${topic}` : ""}:`;
     };
   }
 
+  async loadLessonContext(lessonId: string) {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { id: true, title: true, type: true, content: true },
+    });
+    if (!lesson) return null;
+    return {
+      title: lesson.title,
+      type: lesson.type,
+      content: lesson.content || "",
+    };
+  }
+
+  private async resolveConversation(params: {
+    userId: string;
+    conversationId?: string;
+    lessonId?: string;
+    topic?: string;
+    title?: string;
+  }) {
+    if (params.conversationId) {
+      const existing = await this.prisma.aiConversation.findFirst({
+        where: { id: params.conversationId, userId: params.userId },
+        include: {
+          messages: { orderBy: { createdAt: "asc" }, take: 40 },
+        },
+      });
+      if (existing) return existing;
+    }
+
+    if (params.lessonId) {
+      const forLesson = await this.prisma.aiConversation.findFirst({
+        where: { userId: params.userId, lessonId: params.lessonId },
+        orderBy: { updatedAt: "desc" },
+        include: {
+          messages: { orderBy: { createdAt: "asc" }, take: 40 },
+        },
+      });
+      if (forLesson) return forLesson;
+    }
+
+    return this.prisma.aiConversation.create({
+      data: {
+        userId: params.userId,
+        lessonId: params.lessonId,
+        topic: params.topic,
+        title: params.title || "Mentor chat",
+      },
+      include: { messages: true },
+    });
+  }
+
+  async listConversations(userId: string, lessonId?: string) {
+    return this.prisma.aiConversation.findMany({
+      where: {
+        userId,
+        ...(lessonId ? { lessonId } : {}),
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 30,
+      select: {
+        id: true,
+        lessonId: true,
+        topic: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { messages: true } },
+      },
+    });
+  }
+
+  async getConversation(userId: string, conversationId: string) {
+    const conversation = await this.prisma.aiConversation.findFirst({
+      where: { id: conversationId, userId },
+      include: {
+        messages: { orderBy: { createdAt: "asc" } },
+      },
+    });
+    return conversation;
+  }
+
   private async trackTutorInteraction(userId: string) {
     try {
-      // Track activity via audit log instead of separate activity table
       await this.prisma.auditLog.create({
         data: {
           userId,
@@ -324,14 +485,271 @@ Respond in JSON format:
   async generateHint(
     question: string,
     difficulty: "easy" | "medium" | "hard",
+    lessonId?: string,
   ): Promise<string> {
-    const hints = {
-      easy: `Here's a gentle nudge: Think about the basic components involved. What are the key terms in this question?`,
-      medium: `Consider breaking this down: What would happen if you tried the opposite approach? Sometimes understanding why something doesn't work helps find what does.`,
-      hard: `This is challenging! Try working backwards from the desired outcome. What conditions need to be true for the answer to work?`,
-    };
+    const lessonContext = lessonId
+      ? await this.loadLessonContext(lessonId)
+      : null;
+    const apiKey = this.configService.get<string>("GEMINI_API_KEY");
 
+    if (!apiKey) {
+      return this.getLocalHint(question, difficulty);
+    }
+
+    try {
+      const systemInstruction = `You are StudyAI's hint coach. Give ONE short hint for the learner.
+Do not reveal the full answer. Match difficulty:
+- easy: gentle nudge naming key terms
+- medium: suggest an approach or contrast
+- hard: reverse-engineer from the goal
+Keep under 60 words. Plain text only.`;
+
+      const response = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Difficulty: ${difficulty}
+Question: ${question}
+${lessonContext ? `Lesson: ${lessonContext.title} (${lessonContext.type})\n${lessonContext.content.slice(0, 1200)}` : ""}`,
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Gemini API returned status code ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      return text || this.getLocalHint(question, difficulty);
+    } catch (error) {
+      this.logger.error(`Hint generation error: ${error.message}`);
+      return this.getLocalHint(question, difficulty);
+    }
+  }
+
+  private getLocalHint(
+    question: string,
+    difficulty: "easy" | "medium" | "hard",
+  ): string {
+    const hints = {
+      easy: `Gentle nudge: What are the key terms in "${question.slice(0, 80)}"? Start there.`,
+      medium: `Break it down: What would happen if you tried the opposite approach for this problem?`,
+      hard: `Work backwards from the desired outcome. What conditions must be true?`,
+    };
     return hints[difficulty] || hints.medium;
+  }
+
+  // ==================== QUIZ GENERATION ====================
+
+  async generateQuizFromLesson(
+    lessonId: string,
+    userId: string,
+    options?: { count?: number; save?: boolean },
+  ): Promise<{
+    lessonId: string;
+    questions: Array<{
+      id?: string;
+      question: string;
+      options: string[];
+      correctAnswer?: string;
+    }>;
+    saved: boolean;
+  }> {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { id: true, title: true, type: true, content: true },
+    });
+
+    if (!lesson) {
+      throw new NotFoundException(`Lesson with ID ${lessonId} not found`);
+    }
+
+    const count = Math.min(Math.max(options?.count || 3, 1), 8);
+    const drafted = await this.draftQuizQuestions(lesson, count);
+
+    let savedQuestions = drafted.map((q) => ({
+      question: q.question,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+    }));
+
+    let saved = false;
+    if (options?.save) {
+      const created = await Promise.all(
+        drafted.map((q) =>
+          this.prisma.quizQuestion.create({
+            data: {
+              lessonId,
+              question: q.question,
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+            },
+            select: {
+              id: true,
+              question: true,
+              options: true,
+              correctAnswer: true,
+            },
+          }),
+        ),
+      );
+      savedQuestions = created;
+      saved = true;
+
+      await this.prisma.auditLog.create({
+        data: {
+          userId,
+          action: "AI_QUIZ_GENERATED",
+          details: { lessonId, count: created.length },
+        },
+      });
+    }
+
+    return {
+      lessonId,
+      questions: saved
+        ? savedQuestions.map((q) => ({
+            id: (q as { id?: string }).id,
+            question: q.question,
+            options: q.options,
+            // Hide correct answer from client when saved into live quiz bank
+            // Instructors still get it via curriculum; students use verify endpoint.
+            correctAnswer: options?.save ? undefined : q.correctAnswer,
+          }))
+        : savedQuestions,
+      saved,
+    };
+  }
+
+  private async draftQuizQuestions(
+    lesson: { title: string; type: string; content: string },
+    count: number,
+  ): Promise<
+    Array<{ question: string; options: string[]; correctAnswer: string }>
+  > {
+    const apiKey = this.configService.get<string>("GEMINI_API_KEY");
+    if (!apiKey) {
+      return this.getLocalQuizDraft(lesson, count);
+    }
+
+    try {
+      const systemInstruction = `You generate multiple-choice quiz questions for StudyAI lessons.
+Return JSON only:
+{ "questions": [ { "question": "...", "options": ["A","B","C","D"], "correctAnswer": "exact option text" } ] }
+Rules: exactly ${count} questions, 4 options each, correctAnswer must match one option exactly, grounded in the lesson.`;
+
+      const response = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Lesson title: ${lesson.title}
+Type: ${lesson.type}
+Content:
+${lesson.content.slice(0, 4000)}`,
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Gemini API returned status code ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return this.getLocalQuizDraft(lesson, count);
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]) as {
+        questions?: Array<{
+          question: string;
+          options: string[];
+          correctAnswer: string;
+        }>;
+      };
+
+      const cleaned = (parsed.questions || [])
+        .filter(
+          (q) =>
+            q.question &&
+            Array.isArray(q.options) &&
+            q.options.length >= 2 &&
+            q.correctAnswer &&
+            q.options.includes(q.correctAnswer),
+        )
+        .slice(0, count);
+
+      return cleaned.length > 0
+        ? cleaned
+        : this.getLocalQuizDraft(lesson, count);
+    } catch (error) {
+      this.logger.error(`Quiz generation error: ${error.message}`);
+      return this.getLocalQuizDraft(lesson, count);
+    }
+  }
+
+  private getLocalQuizDraft(
+    lesson: { title: string; type: string },
+    count: number,
+  ) {
+    const base = [
+      {
+        question: `What is the main focus of "${lesson.title}"?`,
+        options: [
+          lesson.title,
+          "Unrelated networking trivia",
+          "Database administration only",
+          "Hardware assembly",
+        ],
+        correctAnswer: lesson.title,
+      },
+      {
+        question: `Which lesson type best describes this activity?`,
+        options: [lesson.type, "TEXT", "VIDEO", "QUIZ"],
+        correctAnswer: lesson.type,
+      },
+      {
+        question: `What should you do first when starting this lesson?`,
+        options: [
+          "Read the instructions carefully",
+          "Skip straight to the final answer",
+          "Ignore the lab constraints",
+          "Delete the starter files",
+        ],
+        correctAnswer: "Read the instructions carefully",
+      },
+    ];
+    return base.slice(0, count);
   }
 
   async generateStudyPlan(

@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
@@ -372,7 +373,12 @@ export class CoursesService {
         content: data.content,
         type: data.type,
         order: data.order,
-        labConfig: data.labConfig === undefined ? undefined : data.labConfig,
+        labConfig:
+          data.labConfig === undefined
+            ? undefined
+            : data.labConfig === null
+              ? Prisma.DbNull
+              : (data.labConfig as Prisma.InputJsonValue),
       },
     });
   }
@@ -403,5 +409,51 @@ export class CoursesService {
         correctAnswer: data.correctAnswer,
       },
     });
+  }
+
+  async listEnrolledStudents(courseId?: string) {
+    if (courseId) {
+      const course = await this.prisma.course.findUnique({
+        where: { id: courseId },
+        select: { id: true },
+      });
+      if (!course) {
+        throw new NotFoundException(`Course with ID ${courseId} not found`);
+      }
+    }
+
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: courseId ? { courseId } : undefined,
+      orderBy: { joinedAt: "desc" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            xp: true,
+            level: true,
+            streak: true,
+            createdAt: true,
+          },
+        },
+        course: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+          },
+        },
+      },
+    });
+
+    return enrollments.map((row) => ({
+      enrollmentId: row.id,
+      joinedAt: row.joinedAt,
+      completed: row.completed,
+      user: row.user,
+      course: row.course,
+    }));
   }
 }

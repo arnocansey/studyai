@@ -43,6 +43,8 @@ model User {
   // Authentication
   accounts        Account[]
   sessions        Session[]
+  refreshTokens   RefreshToken[]
+  authExchangeCodes AuthExchangeCode[]
 
   // Progress & Labs
   enrollments     Enrollment[]
@@ -76,6 +78,7 @@ model User {
   auditLogs       AuditLog[]
   pushSubscriptions PushSubscription[]
   studyPlans      StudyPlan[]
+  aiConversations AiConversation[]
 }
 
 model Account {
@@ -98,6 +101,31 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuthExchangeCode {
+  id        String    @id @default(uuid())
+  codeHash  String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Course {
@@ -505,4 +533,31 @@ model StudyPlan {
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model AiConversation {
+  id        String      @id @default(uuid())
+  userId    String
+  lessonId  String?
+  topic     String?
+  title     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  AiMessage[]
+
+  @@index([userId])
+  @@index([userId, lessonId])
+}
+
+model AiMessage {
+  id             String         @id @default(uuid())
+  conversationId String
+  role           String
+  content        String
+  meta           Json?
+  createdAt      DateTime       @default(now())
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
 }

@@ -123,6 +123,7 @@ export class LessonsService {
   async reviewLabSubmission(
     submissionId: string,
     status: "SUCCESS" | "FAILED" | "REVIEWED",
+    reviewerId: string,
   ) {
     const submission = await this.prisma.labSession.findUnique({
       where: { id: submissionId },
@@ -135,7 +136,7 @@ export class LessonsService {
       );
     }
 
-    return this.prisma.labSession.update({
+    const updated = await this.prisma.labSession.update({
       where: { id: submissionId },
       data: {
         status,
@@ -152,6 +153,22 @@ export class LessonsService {
         },
       },
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: reviewerId,
+        action: "LAB_REVIEW",
+        details: {
+          submissionId,
+          lessonId: updated.lessonId,
+          status,
+          studentId: updated.userId,
+          studentEmail: updated.user.email,
+        },
+      },
+    });
+
+    return updated;
   }
 
   async submitLab(userId: string, lessonId: string, submission: any) {
@@ -199,6 +216,20 @@ export class LessonsService {
         lessonId,
         status: isSuccess ? "SUCCESS" : "FAILED",
         logs,
+        endedAt: isSuccess ? new Date() : null,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: "LAB_SUBMIT",
+        details: {
+          submissionId: labSession.id,
+          lessonId,
+          lessonType: lesson.type,
+          status: labSession.status,
+        },
       },
     });
 

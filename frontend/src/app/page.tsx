@@ -19,6 +19,12 @@ import {
 } from "@/components/dashboard";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
+import { CommandPalette } from "@/components/command-palette";
+import { PageTransition } from "@/components/page-transition";
+import { EmptyState, ErrorState } from "@/components/ui/states";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -276,7 +282,7 @@ export default function Dashboard() {
       }
       setProgressByCourseId(map);
     } catch (err) {
-      console.warn(err instanceof Error ? err.message : "Enroll failed");
+      toast.error(err instanceof Error ? err.message : "Enroll failed");
     } finally {
       setEnrollingId(null);
     }
@@ -382,7 +388,8 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#030303] text-zinc-100 cyber-grid">
+    <div className="flex min-h-screen bg-background text-foreground cyber-grid">
+      <CommandPalette />
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -391,7 +398,7 @@ export default function Dashboard() {
         role={role}
       />
 
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex min-w-0 flex-1 flex-col">
         <Header
           streak={streak}
           userXP={userXP}
@@ -399,143 +406,145 @@ export default function Dashboard() {
           onCheckIn={handleCheckIn}
         />
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 animate-fade-in">
-          {selectedCourseSlug ? (
-            loadingSyllabus ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyber-purple" />
-              </div>
-            ) : selectedCourseDetails ? (
-              <CourseDetail
-                course={selectedCourseDetails}
-                onBack={() => {
-                  setSelectedCourseSlug(null);
-                  setSelectedCourseDetails(null);
-                }}
-              />
+        <div className="flex-1 space-y-8 overflow-y-auto p-6 md:p-8">
+          <PageTransition>
+            {selectedCourseSlug ? (
+              loadingSyllabus ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-8 w-64" />
+                  <Skeleton className="h-4 w-96" />
+                  <Skeleton className="h-64 w-full" />
+                </div>
+              ) : selectedCourseDetails ? (
+                <CourseDetail
+                  course={selectedCourseDetails}
+                  onBack={() => {
+                    setSelectedCourseSlug(null);
+                    setSelectedCourseDetails(null);
+                  }}
+                />
+              ) : (
+                <ErrorState
+                  title="Failed to load syllabus"
+                  message="Could not load course details. Try again."
+                  onRetry={() =>
+                    selectedCourseSlug && void enterCourse(selectedCourseSlug)
+                  }
+                />
+              )
             ) : (
-              <div className="text-center text-zinc-500 text-sm">
-                Failed to load syllabus details.
-              </div>
-            )
-          ) : (
-            <>
-              {activeTab === "dashboard" && (
-                <>
-                  <WelcomeBanner
-                    username={username}
-                    userRole={userRole}
-                    userXP={userXP}
-                  />
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {initialLoading ? (
-                      <div className="lg:col-span-2 space-y-4">
-                        <div className="flex items-center gap-2 mb-6">
-                          <div className="w-5 h-5 rounded bg-zinc-800 animate-skeleton-pulse" />
-                          <div className="h-5 w-48 rounded bg-zinc-800 animate-skeleton-pulse" />
+              <>
+                {activeTab === "dashboard" && (
+                  <>
+                    <WelcomeBanner
+                      username={username}
+                      userRole={userRole}
+                      userXP={userXP}
+                    />
+                    <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                      {initialLoading ? (
+                        <div className="space-y-4 lg:col-span-2">
+                          <Skeleton className="h-6 w-48" />
+                          <Skeleton className="h-24 w-full" />
+                          <Skeleton className="h-24 w-full" />
+                          <Skeleton className="h-24 w-full" />
                         </div>
-                        {[1, 2, 3, 4].map((i) => (
-                          <div
-                            key={i}
-                            className="p-5 rounded-2xl bg-zinc-950/40 border border-zinc-800/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
-                          >
-                            <div className="flex gap-4 items-center">
-                              <div className="w-12 h-12 rounded-xl bg-zinc-800 animate-skeleton-pulse" />
-                              <div className="space-y-2">
-                                <div className="h-3 w-16 rounded bg-zinc-800 animate-skeleton-pulse" />
-                                <div className="h-4 w-48 rounded bg-zinc-800 animate-skeleton-pulse" />
-                                <div className="h-3 w-32 rounded bg-zinc-800 animate-skeleton-pulse" />
-                              </div>
-                            </div>
-                            <div className="w-full md:w-auto flex items-center gap-6">
-                              <div className="space-y-1 w-28">
-                                <div className="h-2 w-full rounded bg-zinc-800 animate-skeleton-pulse" />
-                              </div>
-                              <div className="h-9 w-24 rounded-xl bg-zinc-800 animate-skeleton-pulse" />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <CoursesList
-                        courses={displayCourses}
-                        onEnter={enterCourse}
-                        onBrowseAll={() => setActiveTab("courses")}
-                        onEnroll={handleEnroll}
-                        enrollingId={enrollingId}
-                      />
-                    )}
-                    <QuickLab onXpAwarded={handleXpAwarded} />
-                  </div>
-                </>
-              )}
-
-              {activeTab === "dashboard" && role === "INSTRUCTOR" && (
-                <InstructorPanel username={username} />
-              )}
-              {activeTab === "dashboard" && role === "ADMIN" && (
-                <AdminPanel username={username} />
-              )}
-              {activeTab === "courses" && role === "STUDENT" && (
-                <CourseCatalog courses={displayCourses} onEnter={enterCourse} />
-              )}
-              {activeTab === "manage-courses" &&
-                (role === "INSTRUCTOR" || role === "ADMIN") && (
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-2xl font-extrabold text-white">
-                        Manage Courses
-                      </h2>
-                      <button className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyber-purple to-cyber-blue hover:opacity-90 text-white font-bold text-xs transition-all cursor-pointer border-none">
-                        + Create New Course
-                      </button>
+                      ) : displayCourses.length === 0 ? (
+                        <div className="lg:col-span-2">
+                          <EmptyState
+                            title="No courses yet"
+                            description="Browse the catalog once courses are published, or ask your instructor to create one."
+                            action={{
+                              label: "Browse courses",
+                              onClick: () => setActiveTab("courses"),
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <CoursesList
+                          courses={displayCourses}
+                          onEnter={enterCourse}
+                          onBrowseAll={() => setActiveTab("courses")}
+                          onEnroll={handleEnroll}
+                          enrollingId={enrollingId}
+                        />
+                      )}
+                      <QuickLab onXpAwarded={handleXpAwarded} />
                     </div>
+                  </>
+                )}
+
+                {activeTab === "dashboard" && role === "INSTRUCTOR" && (
+                  <InstructorPanel username={username} />
+                )}
+                {activeTab === "dashboard" && role === "ADMIN" && (
+                  <AdminPanel username={username} />
+                )}
+                {activeTab === "courses" &&
+                  role === "STUDENT" &&
+                  (displayCourses.length === 0 ? (
+                    <EmptyState
+                      title="Catalog empty"
+                      description="No published courses are available yet."
+                    />
+                  ) : (
                     <CourseCatalog
                       courses={displayCourses}
                       onEnter={enterCourse}
                     />
-                  </div>
-                )}
-              {activeTab === "submissions" &&
-                (role === "INSTRUCTOR" || role === "ADMIN") && (
-                  <div className="space-y-6">
-                    <h2 className="text-2xl font-extrabold text-white">
-                      Pending Submissions
-                    </h2>
-                    <div className="p-8 rounded-2xl border border-zinc-800 bg-zinc-950/40 text-center">
-                      <ClipboardList className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-                      <p className="text-zinc-400 text-sm">
-                        No pending submissions to review.
-                      </p>
-                      <p className="text-zinc-600 text-xs mt-2">
-                        Student submissions will appear here for grading.
-                      </p>
+                  ))}
+                {activeTab === "manage-courses" &&
+                  (role === "INSTRUCTOR" || role === "ADMIN") && (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-2xl font-extrabold">
+                          Manage Courses
+                        </h2>
+                        <Button
+                          onClick={() =>
+                            router.push("/dashboard/manage-courses")
+                          }
+                        >
+                          + Create New Course
+                        </Button>
+                      </div>
+                      <CourseCatalog
+                        courses={displayCourses}
+                        onEnter={enterCourse}
+                      />
                     </div>
-                  </div>
+                  )}
+                {activeTab === "submissions" &&
+                  (role === "INSTRUCTOR" || role === "ADMIN") && (
+                    <EmptyState
+                      icon={ClipboardList}
+                      title="No pending submissions"
+                      description="Student submissions will appear here for grading."
+                      action={{
+                        label: "Open submissions",
+                        onClick: () => router.push("/dashboard/submissions"),
+                      }}
+                    />
+                  )}
+                {activeTab === "students" &&
+                  (role === "INSTRUCTOR" || role === "ADMIN") && (
+                    <EmptyState
+                      icon={Users}
+                      title="Student roster"
+                      description="View enrolled students and their progress."
+                      action={{
+                        label: "Open students",
+                        onClick: () => router.push("/dashboard/students"),
+                      }}
+                    />
+                  )}
+                {activeTab === "labs" && <LabsSection />}
+                {activeTab === "leaderboard" && (
+                  <Leaderboard userXP={userXP} username={username} />
                 )}
-              {activeTab === "students" &&
-                (role === "INSTRUCTOR" || role === "ADMIN") && (
-                  <div className="space-y-6">
-                    <h2 className="text-2xl font-extrabold text-white">
-                      Students
-                    </h2>
-                    <div className="p-8 rounded-2xl border border-zinc-800 bg-zinc-950/40 text-center">
-                      <Users className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-                      <p className="text-zinc-400 text-sm">
-                        Student roster will appear here.
-                      </p>
-                      <p className="text-zinc-600 text-xs mt-2">
-                        View enrolled students and their progress.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              {activeTab === "labs" && <LabsSection />}
-              {activeTab === "leaderboard" && (
-                <Leaderboard userXP={userXP} username={username} />
-              )}
-            </>
-          )}
+              </>
+            )}
+          </PageTransition>
         </div>
       </main>
 

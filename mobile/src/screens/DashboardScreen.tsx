@@ -17,6 +17,8 @@ import { cache } from "../services/cache";
 import { haptics } from "../services/haptics";
 import { FadeInView } from "../components/animations";
 import { useOnlineStatus } from "../services/offline";
+import { EmptyState } from "../components/ui";
+import { Ionicons } from "@expo/vector-icons";
 
 const XP_PER_LEVEL = 5000;
 
@@ -136,36 +138,45 @@ export function DashboardScreen({ navigation }: any) {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={[styles.greeting, { color: colors.textMuted }]}>
+            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
               {getGreeting()}
             </Text>
-            <Text style={[styles.name, { color: colors.text }]}>
-              {user.name || "Student"} 👋
+            <Text style={[styles.name, { color: colors.foreground }]}>
+              {user.name || "Student"}
             </Text>
           </View>
           <TouchableOpacity
             style={[
               styles.notificationButton,
-              { backgroundColor: colors.card },
+              { backgroundColor: colors.card, borderColor: colors.border },
             ]}
             accessibilityLabel="Notifications"
             accessibilityRole="button"
           >
-            <Text style={styles.notificationIcon}>🔔</Text>
+            <Ionicons
+              name="notifications-outline"
+              size={20}
+              color={colors.foreground}
+            />
           </TouchableOpacity>
         </View>
 
         {!online && (
-          <View style={[styles.offlineBanner, { backgroundColor: "#F59E0B" }]}>
+          <View
+            style={[
+              styles.offlineBanner,
+              { backgroundColor: colors.cyberOrange },
+            ]}
+          >
             <Text style={styles.offlineText}>
-              📡 You are offline. Showing cached data.
+              You are offline. Showing cached data.
             </Text>
           </View>
         )}
 
         {/* XP Card */}
         <FadeInView delay={100}>
-          <View style={[styles.xpCard, { backgroundColor: colors.accent }]}>
+          <View style={[styles.xpCard, { backgroundColor: colors.primary }]}>
             <View style={styles.xpHeader}>
               <Text style={styles.xpLabel}>Level {user.level || 1}</Text>
               <Text style={styles.xpValue}>
@@ -183,6 +194,42 @@ export function DashboardScreen({ navigation }: any) {
             <Text style={styles.xpToNext}>
               {xpToNext.toLocaleString()} XP to Level {(user.level || 1) + 1}
             </Text>
+          </View>
+        </FadeInView>
+
+        {/* Quick actions */}
+        <FadeInView delay={150}>
+          <View style={styles.quickRow}>
+            <TouchableOpacity
+              style={[
+                styles.quickAction,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+              onPress={() => navigation.navigate("StudyPlan")}
+              accessibilityRole="button"
+            >
+              <Ionicons name="color-wand" size={18} color={colors.primary} />
+              <Text style={[styles.quickText, { color: colors.foreground }]}>
+                Study Plan
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.quickAction,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+              onPress={() => navigation.navigate("Playground")}
+              accessibilityRole="button"
+            >
+              <Ionicons
+                name="code-slash-outline"
+                size={18}
+                color={colors.cyberBlue}
+              />
+              <Text style={[styles.quickText, { color: colors.foreground }]}>
+                Playground
+              </Text>
+            </TouchableOpacity>
           </View>
         </FadeInView>
 
@@ -217,22 +264,9 @@ export function DashboardScreen({ navigation }: any) {
         {/* Continue Learning */}
         <FadeInView delay={300}>
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
               Continue Learning
             </Text>
-            <TouchableOpacity
-              style={[
-                styles.studyPlanLink,
-                { borderColor: colors.border, backgroundColor: colors.card },
-              ]}
-              onPress={() => navigation.navigate("StudyPlan")}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.studyPlanText, { color: colors.text }]}>
-                ✨ AI Study Plan
-              </Text>
-              <Text style={{ color: colors.textMuted }}>›</Text>
-            </TouchableOpacity>
             {courses.length > 0 ? (
               courses.map((course) => (
                 <TouchableOpacity
@@ -254,21 +288,25 @@ export function DashboardScreen({ navigation }: any) {
                   <View
                     style={[
                       styles.courseIcon,
-                      { backgroundColor: colors.accent + "20" },
+                      { backgroundColor: colors.primary + "20" },
                     ]}
                   >
-                    <Text style={styles.courseIconText}>
-                      {course.icon || "📚"}
-                    </Text>
+                    <Ionicons
+                      name="book-outline"
+                      size={20}
+                      color={colors.primary}
+                    />
                   </View>
                   <View style={styles.courseInfo}>
-                    <Text style={[styles.courseTitle, { color: colors.text }]}>
+                    <Text
+                      style={[styles.courseTitle, { color: colors.foreground }]}
+                    >
                       {course.title}
                     </Text>
                     <Text
                       style={[
                         styles.courseProgress,
-                        { color: colors.textMuted },
+                        { color: colors.mutedForeground },
                       ]}
                     >
                       {course._count?.modules ?? course.lessonsCount ?? 0}{" "}
@@ -278,18 +316,10 @@ export function DashboardScreen({ navigation }: any) {
                 </TouchableOpacity>
               ))
             ) : (
-              <View
-                style={[
-                  styles.emptyState,
-                  { backgroundColor: colors.card, borderColor: colors.border },
-                ]}
-              >
-                <Text
-                  style={[styles.emptyStateText, { color: colors.textMuted }]}
-                >
-                  Start learning! Browse our courses.
-                </Text>
-              </View>
+              <EmptyState
+                title="No courses yet"
+                description="Published courses will show up here when available."
+              />
             )}
           </View>
         </FadeInView>
@@ -367,10 +397,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
+    borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  notificationIcon: { fontSize: 20 },
   xpCard: { marginHorizontal: 20, padding: 20, borderRadius: 20 },
   xpHeader: {
     flexDirection: "row",
@@ -388,6 +418,23 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: "100%", backgroundColor: "#FCD34D", borderRadius: 4 },
   xpToNext: { color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 8 },
+  quickRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 20,
+    marginTop: 16,
+  },
+  quickAction: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  quickText: { fontSize: 13, fontWeight: "600" },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

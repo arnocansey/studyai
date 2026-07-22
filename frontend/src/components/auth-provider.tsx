@@ -24,6 +24,8 @@ interface AuthContextType {
     role?: string;
   }) => Promise<void>;
   logout: () => void;
+  loginWithGoogle: () => void;
+  loginWithGitHub: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,15 +39,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const restoreSession = async () => {
       try {
-        const data = await bffFetch<User & { accessToken?: string }>(
-          "/api/auth/me",
-        );
+        let data: (User & { accessToken?: string }) | null = null;
+        try {
+          data = await bffFetch<User & { accessToken?: string }>(
+            "/api/auth/me",
+          );
+        } catch {
+          // Try refresh once
+          try {
+            await fetch("/api/auth/refresh", {
+              method: "POST",
+              credentials: "include",
+            });
+            data = await bffFetch<User & { accessToken?: string }>(
+              "/api/auth/me",
+            );
+          } catch {
+            data = null;
+          }
+        }
+
         if (cancelled) return;
-        const { accessToken, ...userData } = data;
-        if (!accessToken) {
+        if (!data?.accessToken) {
           storeLogout();
           return;
         }
+        const { accessToken, ...userData } = data;
         storeLogin(
           {
             id: userData.id,
@@ -102,8 +121,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     storeLogout();
   };
 
+  const loginWithGoogle = () => {
+    window.location.href = "/api/auth/google";
+  };
+
+  const loginWithGitHub = () => {
+    window.location.href = "/api/auth/github";
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        login,
+        register,
+        logout,
+        loginWithGoogle,
+        loginWithGitHub,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
