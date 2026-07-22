@@ -4,9 +4,10 @@ services:
     runtime: node
     region: oregon
     plan: free
-    # Migrate on build AND start so schema stays current even if build cache skips migrate.
-    buildCommand: cd backend && npm install --legacy-peer-deps --include=dev && npx prisma@6.19.3 migrate deploy && npx prisma@6.19.3 generate && npx nest build
-    startCommand: cd backend && npx prisma@6.19.3 migrate deploy && node dist/src/main.js
+    # Prefer db push: prod DB was historically synced without a baseline migration.
+    # Also keeps additive migrate history for environments that use it.
+    buildCommand: cd backend && npm install --legacy-peer-deps --include=dev && npx prisma@6.19.3 db push && npx prisma@6.19.3 generate && npx nest build
+    startCommand: cd backend && npx prisma@6.19.3 db push && node dist/src/main.js
     envVars:
       - key: NODE_ENV
         value: production
