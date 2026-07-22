@@ -1,0 +1,37 @@
+---
+description: StudyAI product vision and engineering quality bar
+alwaysApply: true
+---
+
+# StudyAI — Product & Engineering Bar
+
+This repo is **StudyAI** (interactive tech education: web + mobile + Nest API). It is **not** the amber-terminal `root/path` project.
+
+## Product north star
+
+Build the most interactive tech-learning platform — not another Udemy/Coursera clone. Learning should feel polished, game-like, and delightful across:
+
+Web (Next.js), Expo mobile, admin/instructor dashboards, AI tutor, labs/playgrounds/simulators, gamification, community, certifications.
+
+Domains: programming, cybersecurity, networking, Linux, cloud, AI, DevOps, web/mobile, databases, OS, DSA, forensics, ethical hacking, IoT, blockchain, UI/UX, system design.
+
+## Stack (prefer existing choices)
+
+- **Web:** Next.js App Router, React, TypeScript, Tailwind, Radix/shadcn patterns, Motion, TanStack Query, Zustand, Zod
+- **API:** NestJS, Prisma, PostgreSQL, Redis, BullMQ, WebSockets, JWT + RBAC, OpenAPI
+- **Mobile:** Expo / React Native, TypeScript, Secure Store, Reanimated
+
+Do not invent a parallel stack (e.g. Supabase-only rewrite) unless explicitly requested.
+
+## Quality bar on every change
+
+Prefer production-ready increments over mega-rewrites. For each feature, consider UX, a11y (WCAG 2.2 AA + `prefers-reduced-motion`), security (OWASP, validation, rate limits, secure cookies), performance (CWV, caching, virtualization where lists are large), and maintainability (typed, modular, feature-oriented).
+
+UI should feel modern/premium (Linear/Stripe/Vercel/Duolingo-class references) — polished empty/loading/error/retry states, skeletons, toasts, keyboard access, responsive + mobile-first. Animations: purposeful and 60fps, never noisy.
+
+## When implementing
+
+1. Match existing StudyAI patterns before adding new libraries.
+2. If a better approach than requested exists, recommend it briefly, then implement the agreed path.
+3. Ship vertical slices; do not attempt the full platform wishlist in one pass.
+4. Tests where risk is high (auth, XP integrity, payments, quiz grading); don’t block small UI polish on full suite coverage.

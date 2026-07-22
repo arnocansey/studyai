@@ -3,10 +3,15 @@ import {
   Post,
   Get,
   Body,
+  Param,
+  Query,
   UseGuards,
   Request,
+  Res,
   BadRequestException,
+  NotFoundException,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { AiService, TutorMessage } from "./ai.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import {
@@ -29,6 +34,12 @@ class ExplainDto {
     required: false,
   })
   context?: string;
+
+  @ApiProperty({
+    description: "Optional lesson ID to load curriculum context",
+    required: false,
+  })
+  lessonId?: string;
 }
 
 class TutorDto {
@@ -44,6 +55,18 @@ class TutorDto {
 
   @ApiProperty({ description: "Optional topic focus", required: false })
   topic?: string;
+
+  @ApiProperty({
+    description: "Existing conversation ID for persistence",
+    required: false,
+  })
+  conversationId?: string;
+
+  @ApiProperty({
+    description: "Lesson ID for lesson-aware mentoring",
+    required: false,
+  })
+  lessonId?: string;
 }
 
 class ReviewDto {
@@ -71,6 +94,9 @@ class HintDto {
     required: false,
   })
   difficulty?: "easy" | "medium" | "hard";
+
+  @ApiProperty({ description: "Optional lesson ID", required: false })
+  lessonId?: string;
 }
 
 class StudyPlanDto {
@@ -110,6 +136,25 @@ class StudyPlanDto {
   focusAreas?: string[];
 }
 
+class GenerateQuizDto {
+  @ApiProperty({ description: "Lesson ID to generate questions from" })
+  lessonId: string;
+
+  @ApiProperty({
+    description: "Number of questions (1-8)",
+    required: false,
+    default: 3,
+  })
+  count?: number;
+
+  @ApiProperty({
+    description: "Persist questions into the lesson quiz bank",
+    required: false,
+    default: false,
+  })
+  save?: boolean;
+}
+
 @ApiTags("AI")
 @Controller("ai")
 export class AiController {
@@ -129,9 +174,24 @@ export class AiController {
     if (body.prompt.length > 5000) {
       throw new BadRequestException("Prompt too long (max 5000 characters)");
     }
+
+    let context = body.context;
+    if (body.lessonId) {
+      const lesson = await this.aiService.loadLessonContext(body.lessonId);
+      if (lesson) {
+        context = [
+          context,
+          `Lesson: ${lesson.title} (${lesson.type})`,
+          lesson.content.slice(0, 2000),
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+      }
+    }
+
     const explanation = await this.aiService.explainConcept(
       body.prompt,
-      body.context,
+      context,
     );
     return { explanation };
   }
@@ -139,15 +199,41 @@ export class AiController {
   @Post("tutor")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Socratic tutor — guided learning" })
+  @ApiOperation({
+    summary: "Socratic mentor — guided learning with persistence",
+  })
   @ApiResponse({ status: 200, description: "Return guided tutor response." })
   @ApiResponse({ status: 401, description: "Unauthorized." })
   async socraticTutor(@Body() body: TutorDto, @Request() req: any) {
     return this.aiService.socraticTutor(
-      body.messages,
+      body.messages || [],
       body.topic,
-      req.user?.id,
+      req.user.id,
+      {
+        conversationId: body.conversationId,
+        lessonId: body.lessonId,
+      },
     );
+  }
+
+  @Get("conversations")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "List mentor conversations for the current user" })
+  listConversations(@Request() req: any, @Query("lessonId") lessonId?: string) {
+    return this.aiService.listConversations(req.user.id, lessonId);
+  }
+
+  @Get("conversations/:id")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get a mentor conversation with messages" })
+  async getConversation(@Request() req: any, @Param("id") id: string) {
+    const conversation = await this.aiService.getConversation(req.user.id, id);
+    if (!conversation) {
+      throw new NotFoundException("Conversation not found");
+    }
+    return conversation;
   }
 
   @Post("review")
@@ -180,8 +266,106 @@ export class AiController {
     const hint = await this.aiService.generateHint(
       body.question,
       body.difficulty || "medium",
+      body.lessonId,
     );
     return { hint };
+  }
+
+  @Post("quiz/generate")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Generate practice quiz questions from a lesson (AI)",
+  })
+  async generateQuiz(@Body() body: GenerateQuizDto, @Request() req: any) {
+    if (!body.lessonId) {
+      throw new BadRequestException("lessonId is required");
+    }
+    // Only instructors/admins may persist into the live quiz bank
+    const save =
+      Boolean(body.save) &&
+      (req.user.role === "INSTRUCTOR" || req.user.role === "ADMIN");
+
+    return this.aiService.generateQuizFromLesson(body.lessonId, req.user.id, {
+      count: body.count,
+      save,
+    });
+  }
+
+  @Get("weaknesses")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Analyze learning weaknesses from progress + quizzes",
+  })
+  analyzeWeaknesses(@Request() req: any) {
+    return this.aiService.analyzeWeaknesses(req.user.id);
+  }
+
+  @Post("tutor/stream")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Stream Socratic mentor tokens (SSE)" })
+  async streamTutor(
+    @Body() body: TutorDto,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    try {
+      for await (const token of this.aiService.streamTutorTokens(
+        body.messages || [],
+        body.topic,
+        body.lessonId,
+      )) {
+        res.write(`data: ${JSON.stringify({ token })}\n\n`);
+      }
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    } catch (error) {
+      res.write(
+        `data: ${JSON.stringify({ error: error instanceof Error ? error.message : "stream failed" })}\n\n`,
+      );
+    } finally {
+      res.end();
+    }
+  }
+
+  @Post("flashcards/generate")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Generate and save a flashcard deck from a lesson" })
+  generateFlashcards(
+    @Body() body: { lessonId: string; count?: number },
+    @Request() req: any,
+  ) {
+    if (!body.lessonId) {
+      throw new BadRequestException("lessonId is required");
+    }
+    return this.aiService.generateFlashcards(
+      body.lessonId,
+      req.user.id,
+      body.count || 8,
+    );
+  }
+
+  @Get("flashcards")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  listFlashcards(@Request() req: any) {
+    return this.aiService.listFlashcardDecks(req.user.id);
+  }
+
+  @Get("flashcards/:id")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async getFlashcards(@Request() req: any, @Param("id") id: string) {
+    const deck = await this.aiService.getFlashcardDeck(req.user.id, id);
+    if (!deck) throw new NotFoundException("Deck not found");
+    return deck;
   }
 
   @Get("study-plan/latest")

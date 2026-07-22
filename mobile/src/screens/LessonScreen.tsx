@@ -14,6 +14,9 @@ import { useUser } from "../context/UserContext";
 import { coursesApi, Lesson, QuizQuestion } from "../services/courses";
 import { haptics } from "../services/haptics";
 import { FadeInView } from "../components/animations";
+import { Badge, Button } from "../components/ui";
+import { aiApi } from "../services/ai";
+import { Ionicons } from "@expo/vector-icons";
 
 type AnswerState = Record<
   string,
@@ -31,6 +34,10 @@ export function LessonScreen({ navigation, route }: any) {
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [practiceLoading, setPracticeLoading] = useState(false);
+  const [practice, setPractice] = useState<
+    Array<{ question: string; options: string[] }>
+  >([]);
 
   const load = useCallback(async () => {
     if (!lessonId) return;
@@ -121,6 +128,23 @@ export function LessonScreen({ navigation, route }: any) {
     }
   };
 
+  const generatePractice = async () => {
+    if (!lessonId) return;
+    setPracticeLoading(true);
+    try {
+      const data = await aiApi.generateQuiz(lessonId, 3, false);
+      setPractice(data.questions || []);
+      haptics.light();
+    } catch (err) {
+      Alert.alert(
+        "Practice quiz",
+        err instanceof Error ? err.message : "Could not generate questions",
+      );
+    } finally {
+      setPracticeLoading(false);
+    }
+  };
+
   const allQuizCorrect =
     questions.length === 0 || questions.every((q) => answers[q.id]?.correct);
 
@@ -131,7 +155,7 @@ export function LessonScreen({ navigation, route }: any) {
         edges={["top"]}
       >
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colors.accent} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </SafeAreaView>
     );
@@ -145,11 +169,13 @@ export function LessonScreen({ navigation, route }: any) {
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={[styles.back, { color: colors.accent }]}>‹ Back</Text>
+            <Text style={[styles.back, { color: colors.primary }]}>‹ Back</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.centered}>
-          <Text style={{ color: colors.textMuted }}>Lesson not found</Text>
+          <Text style={{ color: colors.mutedForeground }}>
+            Lesson not found
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -168,28 +194,75 @@ export function LessonScreen({ navigation, route }: any) {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             accessibilityRole="button"
+            style={styles.backRow}
           >
-            <Text style={[styles.back, { color: colors.accent }]}>
-              ‹ {courseTitle}
+            <Ionicons name="chevron-back" size={22} color={colors.primary} />
+            <Text style={[styles.back, { color: colors.primary }]}>
+              {courseTitle}
             </Text>
           </TouchableOpacity>
         </View>
 
         <FadeInView>
-          <Text style={[styles.type, { color: colors.accent }]}>
-            {lesson.type}
-          </Text>
-          <Text style={[styles.title, { color: colors.text }]}>
+          <View style={{ marginHorizontal: 16, marginTop: 8 }}>
+            <Badge>{lesson.type}</Badge>
+          </View>
+          <Text style={[styles.title, { color: colors.foreground }]}>
             {lesson.title}
           </Text>
-          <Text style={[styles.content, { color: colors.textMuted }]}>
+          <Text style={[styles.content, { color: colors.mutedForeground }]}>
             {lesson.content?.trim() || "No content yet for this lesson."}
           </Text>
         </FadeInView>
 
+        <FadeInView delay={80}>
+          <View style={styles.mentorActions}>
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={generatePractice}
+              loading={practiceLoading}
+            >
+              AI practice quiz
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => navigation.navigate("Playground")}
+            >
+              Open playground
+            </Button>
+          </View>
+          {practice.map((q, idx) => (
+            <View
+              key={idx}
+              style={[
+                styles.quizCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.question, { color: colors.foreground }]}>
+                {idx + 1}. {q.question}
+              </Text>
+              {(q.options || []).map((option) => (
+                <Text
+                  key={option}
+                  style={{
+                    color: colors.mutedForeground,
+                    marginTop: 4,
+                    fontSize: 13,
+                  }}
+                >
+                  • {option}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </FadeInView>
+
         {questions.length > 0 && (
           <FadeInView delay={120}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
               Quiz
             </Text>
             {questions.map((q, index) => {
@@ -205,7 +278,7 @@ export function LessonScreen({ navigation, route }: any) {
                     },
                   ]}
                 >
-                  <Text style={[styles.question, { color: colors.text }]}>
+                  <Text style={[styles.question, { color: colors.foreground }]}>
                     {index + 1}. {q.question}
                   </Text>
                   {(q.options || []).map((option) => {
@@ -219,16 +292,16 @@ export function LessonScreen({ navigation, route }: any) {
                           styles.option,
                           { borderColor: colors.border },
                           selected && {
-                            borderColor: colors.accent,
-                            backgroundColor: colors.accent + "18",
+                            borderColor: colors.primary,
+                            backgroundColor: colors.primary + "18",
                           },
                           isCorrect && {
-                            borderColor: "#10B981",
-                            backgroundColor: "#10B98122",
+                            borderColor: colors.success,
+                            backgroundColor: colors.success + "22",
                           },
                           isWrong && {
-                            borderColor: "#EF4444",
-                            backgroundColor: "#EF444422",
+                            borderColor: colors.destructive,
+                            backgroundColor: colors.destructive + "22",
                           },
                         ]}
                         onPress={() => selectAnswer(q.id, option)}
@@ -236,7 +309,10 @@ export function LessonScreen({ navigation, route }: any) {
                         accessibilityRole="button"
                       >
                         <Text
-                          style={[styles.optionText, { color: colors.text }]}
+                          style={[
+                            styles.optionText,
+                            { color: colors.foreground },
+                          ]}
                         >
                           {option}
                         </Text>
@@ -247,7 +323,11 @@ export function LessonScreen({ navigation, route }: any) {
                     <Text
                       style={[
                         styles.feedback,
-                        { color: state.correct ? "#10B981" : "#EF4444" },
+                        {
+                          color: state.correct
+                            ? colors.success
+                            : colors.destructive,
+                        },
                       ]}
                     >
                       {state.message}
@@ -259,29 +339,18 @@ export function LessonScreen({ navigation, route }: any) {
           </FadeInView>
         )}
 
-        <TouchableOpacity
-          style={[
-            styles.completeBtn,
-            {
-              backgroundColor:
-                completed || !allQuizCorrect ? colors.border : colors.accent,
-              opacity: completing ? 0.7 : 1,
-            },
-          ]}
+        <Button
+          style={{ marginHorizontal: 16, marginTop: 28 }}
           disabled={completing || completed || !allQuizCorrect}
+          loading={completing}
           onPress={markComplete}
-          accessibilityRole="button"
         >
-          <Text style={styles.completeText}>
-            {completed
-              ? "Completed"
-              : !allQuizCorrect
-                ? "Answer all quiz questions"
-                : completing
-                  ? "Saving…"
-                  : "Mark complete (+50 XP)"}
-          </Text>
-        </TouchableOpacity>
+          {completed
+            ? "Completed"
+            : !allQuizCorrect
+              ? "Answer all quiz questions"
+              : "Mark complete (+50 XP)"}
+        </Button>
       </ScrollView>
     </SafeAreaView>
   );
@@ -292,26 +361,26 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { paddingBottom: 48 },
   header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  backRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   back: { fontSize: 17, fontWeight: "600" },
-  type: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-  },
   title: {
     fontSize: 26,
     fontWeight: "800",
     marginHorizontal: 16,
-    marginTop: 6,
+    marginTop: 10,
   },
   content: {
     fontSize: 15,
     lineHeight: 24,
     marginHorizontal: 16,
     marginTop: 14,
+  },
+  mentorActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 20,
   },
   sectionTitle: {
     fontSize: 18,
@@ -337,12 +406,4 @@ const styles = StyleSheet.create({
   },
   optionText: { fontSize: 14 },
   feedback: { marginTop: 10, fontSize: 13, fontWeight: "600" },
-  completeBtn: {
-    marginHorizontal: 16,
-    marginTop: 28,
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: "center",
-  },
-  completeText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 });

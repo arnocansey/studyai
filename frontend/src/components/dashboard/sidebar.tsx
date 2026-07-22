@@ -16,6 +16,9 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { usePathname, useRouter } from "next/navigation";
 
 interface SidebarProps {
@@ -110,21 +113,16 @@ export function Sidebar({
   };
 
   return (
-    <aside className="hidden w-64 flex-col justify-between border-r border-zinc-800/80 bg-zinc-950/60 backdrop-blur-md md:flex">
+    <aside className="hidden w-64 flex-col justify-between border-r border-sidebar-border bg-sidebar md:flex">
       <div>
-        <div className="flex h-16 items-center gap-3 border-b border-zinc-800/80 px-6">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-cyber-purple to-cyber-blue shadow-lg">
-            <Cpu className="h-5 w-5 text-white" />
+        <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Cpu className="h-4 w-4" />
           </div>
-          <div>
-            <span className="bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-lg font-bold tracking-wider text-transparent">
-              StudyAI
-            </span>
-            <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-cyber-green" />
-          </div>
+          <span className="text-lg font-bold tracking-tight">StudyAI</span>
         </div>
 
-        <nav className="space-y-1 p-4">
+        <nav className="space-y-1 p-3" aria-label="Main">
           {navItems.map((item) => {
             const active = item.href
               ? pathname === item.href
@@ -132,14 +130,16 @@ export function Sidebar({
             return (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => handleNav(item)}
-                className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 ${
+                className={cn(
+                  "flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
                   active
-                    ? "border border-zinc-700/30 bg-zinc-800/40 font-medium text-white shadow-inner"
-                    : "text-zinc-400 hover:bg-zinc-900/30 hover:text-zinc-200"
-                }`}
+                    ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-muted hover:text-foreground",
+                )}
               >
-                <item.icon className="h-5 w-5" />
+                <item.icon className="h-4 w-4" />
                 <span>{item.label}</span>
               </button>
             );
@@ -147,25 +147,27 @@ export function Sidebar({
         </nav>
       </div>
 
-      <div className="space-y-3 border-t border-zinc-800/80 p-4">
-        <div className="flex items-center gap-3 rounded-xl border border-zinc-800/50 bg-zinc-900/30 p-2">
-          <div className="rounded-full bg-gradient-to-br from-cyber-purple via-cyber-blue to-cyber-green p-[2px]">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-sm font-bold">
-              {username.charAt(0).toUpperCase()}
-            </div>
+      <div className="space-y-3 border-t border-sidebar-border p-3">
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-sm font-bold text-primary">
+            {username.charAt(0).toUpperCase()}
           </div>
-          <div>
-            <p className="text-sm font-semibold text-white">{username}</p>
-            <p className="text-xs text-zinc-500">{userRole}</p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{username}</p>
+            <p className="text-xs text-muted-foreground">{userRole}</p>
           </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-4 py-2.5 text-zinc-400 transition-all duration-200 hover:bg-zinc-900/30 hover:text-red-400"
-        >
-          <LogOut className="h-4 w-4" />
-          <span className="text-sm font-medium">Log Out</span>
-        </button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Button
+            variant="ghost"
+            className="flex-1 justify-start text-muted-foreground hover:text-destructive"
+            onClick={handleLogout}
+          >
+            <LogOut className="h-4 w-4" />
+            Log out
+          </Button>
+        </div>
         <Link href="/dashboard/study-plan" className="sr-only">
           Study plan
         </Link>

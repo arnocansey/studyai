@@ -1,14 +1,23 @@
-import { NextResponse } from "next/server";
-import { AUTH_COOKIE } from "@/lib/auth-cookie";
+import { NextRequest, NextResponse } from "next/server";
+import { clearAuthCookies, REFRESH_COOKIE } from "@/lib/auth-cookie";
+import { BACKEND_URL } from "@/lib/backend-proxy";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const refreshToken = req.cookies.get(REFRESH_COOKIE)?.value;
+  try {
+    if (refreshToken) {
+      await fetch(`${BACKEND_URL}/auth/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+        cache: "no-store",
+      });
+    }
+  } catch {
+    // still clear cookies locally
+  }
+
   const response = NextResponse.json({ success: true });
-  response.cookies.set(AUTH_COOKIE, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
+  clearAuthCookies(response);
   return response;
 }

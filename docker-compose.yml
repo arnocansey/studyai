@@ -16,8 +16,13 @@ services:
       - JWT_SECRET=${JWT_SECRET:-your-secret-key}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - CORS_ORIGINS=http://localhost:3000
+      - REDIS_ENABLED=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -58,7 +63,7 @@ services:
     networks:
       - studyai-network
 
-  # Redis (for caching and rate limiting)
+  # Redis (BullMQ jobs + Socket.IO multi-instance adapter)
   redis:
     image: redis:7-alpine
     ports:

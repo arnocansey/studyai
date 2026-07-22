@@ -27,23 +27,84 @@ export interface StudyPlanRequest {
   focusAreas?: string[];
 }
 
+export interface CodeReviewResult {
+  rating: number;
+  feedback: string;
+  improvements: string[];
+  securityIssues: string[];
+}
+
+export interface TutorResponse {
+  response: string;
+  followUp: string;
+  hint: string;
+  conversationId: string;
+}
+
 export const aiApi = {
-  explain: (prompt: string, context?: string) =>
-    api.post<{ explanation: string }>("/ai/explain", { prompt, context }),
+  explain: (prompt: string, context?: string, lessonId?: string) =>
+    api.post<{ explanation: string }>("/ai/explain", {
+      prompt,
+      context,
+      lessonId,
+    }),
 
   tutor: (
     messages: { role: "user" | "assistant"; content: string }[],
-    topic?: string,
-  ) => api.post<{ response: string }>("/ai/tutor", { messages, topic }),
+    options?: { topic?: string; lessonId?: string; conversationId?: string },
+  ) =>
+    api.post<TutorResponse>("/ai/tutor", {
+      messages,
+      topic: options?.topic,
+      lessonId: options?.lessonId,
+      conversationId: options?.conversationId,
+    }),
 
   review: (code: string, language: string) =>
-    api.post<{ review: string; suggestions: string[] }>("/ai/review", {
+    api.post<CodeReviewResult>("/ai/review", {
       code,
       language,
     }),
 
-  hint: (question: string, difficulty?: string) =>
-    api.post<{ hint: string }>("/ai/hint", { question, difficulty }),
+  hint: (question: string, difficulty?: string, lessonId?: string) =>
+    api.post<{ hint: string }>("/ai/hint", {
+      question,
+      difficulty,
+      lessonId,
+    }),
+
+  generateQuiz: (lessonId: string, count = 3, save = false) =>
+    api.post<{
+      lessonId: string;
+      questions: Array<{
+        id?: string;
+        question: string;
+        options: string[];
+        correctAnswer?: string;
+      }>;
+      saved: boolean;
+    }>("/ai/quiz/generate", { lessonId, count, save }),
+
+  listConversations: (lessonId?: string) =>
+    api.get<
+      Array<{
+        id: string;
+        lessonId: string | null;
+        topic: string | null;
+        title: string | null;
+        updatedAt: string;
+      }>
+    >(
+      lessonId
+        ? `/ai/conversations?lessonId=${encodeURIComponent(lessonId)}`
+        : "/ai/conversations",
+    ),
+
+  getConversation: (id: string) =>
+    api.get<{
+      id: string;
+      messages: Array<{ role: string; content: string }>;
+    }>(`/ai/conversations/${id}`),
 
   getLatestStudyPlan: () => api.get<StudyPlan | null>("/ai/study-plan/latest"),
 

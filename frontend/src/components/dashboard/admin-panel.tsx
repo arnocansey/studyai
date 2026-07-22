@@ -1,69 +1,222 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Shield } from 'lucide-react';
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { BookOpen, ClipboardList, Shield, Users } from "lucide-react";
+import { apiFetch } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState, EmptyState } from "@/components/ui/states";
 
 interface AdminPanelProps {
   username: string;
 }
 
-export function AdminPanel({ username }: AdminPanelProps) {
-  const systems = [
-    { title: 'Neon DB Connections', value: '8 / 50 Active Pools', detail: 'Latency: 24ms (SSL)', icon: '💾' },
-    { title: 'Gemini Orchestration API', value: 'Status: Online', detail: 'Usage: 3.4K calls today', icon: '🤖' },
-    { title: 'Sandbox MicroVM Status', value: 'Healthy', detail: '0 active security alarms', icon: '🔒' },
-  ];
+interface OpsSummary {
+  totalUsers: number;
+  usersByRole: {
+    STUDENT: number;
+    INSTRUCTOR: number;
+    ADMIN: number;
+  };
+  courseCount: number;
+  enrollmentCount: number;
+  pendingSubmissions: number;
+  avgStudentStreak: number;
+}
 
-  const auditLogs = [
-    { time: '01:31:02', ip: '192.168.1.104', action: 'USER_SIGNUP', desc: 'cadet@studyai.io created STUDENT profile' },
-    { time: '01:28:44', ip: '10.0.8.22', action: 'LAB_SUBMIT', desc: 'student@studyai.io triggered Cyber flag verification' },
-    { time: '01:25:12', ip: '192.168.1.203', action: 'STREAK_CHECK_IN', desc: 'Checked in, updated streak stats' },
-  ];
+interface AuditEntry {
+  id: string;
+  action: string;
+  details: Record<string, unknown>;
+  ipAddress: string | null;
+  timestamp: string;
+  user: {
+    id: string;
+    email: string;
+    name: string | null;
+    role: string;
+  } | null;
+}
+
+function formatAuditDetail(entry: AuditEntry): string {
+  const d = entry.details || {};
+  if (entry.action === "ROLE_CHANGE") {
+    return `${d.targetEmail || d.targetUserId}: ${d.from} → ${d.to}`;
+  }
+  if (entry.action === "LAB_SUBMIT" || entry.action === "LAB_REVIEW") {
+    return `lesson ${d.lessonId || "?"} · ${d.status || ""}`;
+  }
+  if (entry.user?.email) return entry.user.email;
+  return Object.keys(d).length ? JSON.stringify(d).slice(0, 80) : "—";
+}
+
+export function AdminPanel({ username }: AdminPanelProps) {
+  const [summary, setSummary] = useState<OpsSummary | null>(null);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    Promise.all([
+      apiFetch<OpsSummary>("/ops/summary"),
+      apiFetch<AuditEntry[]>("/ops/audit?limit=20"),
+    ])
+      .then(([summaryData, auditData]) => {
+        if (cancelled) return;
+        setSummary(summaryData);
+        setAudit(auditData);
+        setError("");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setSummary(null);
+        setAudit([]);
+        setError(
+          err instanceof Error ? err.message : "Failed to load admin ops data",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const metrics = summary
+    ? [
+        {
+          title: "Users",
+          value: String(summary.totalUsers),
+          detail: `${summary.usersByRole.STUDENT} students · ${summary.usersByRole.INSTRUCTOR} instructors · ${summary.usersByRole.ADMIN} admins`,
+          icon: Users,
+        },
+        {
+          title: "Courses & seats",
+          value: String(summary.courseCount),
+          detail: `${summary.enrollmentCount} enrollments · avg streak ${summary.avgStudentStreak}d`,
+          icon: BookOpen,
+        },
+        {
+          title: "Pending labs",
+          value: String(summary.pendingSubmissions),
+          detail: "Failed or unfinished submissions",
+          icon: ClipboardList,
+        },
+      ]
+    : [];
 
   return (
-    <>
-      <section className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-br from-zinc-950 to-zinc-900 p-6 md:p-8 glow-red">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-red-500/5 blur-[120px] rounded-full pointer-events-none" />
-        <div className="max-w-2xl relative z-10 space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-full text-xs text-red-400 font-medium">
-            <Shield className="w-3.5 h-3.5 animate-pulse" />
-            <span>System Administrator Portal</span>
-          </div>
-          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
-            Root Console, {username}.
+    <div className="space-y-6">
+      <section className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-card to-muted/40 p-6 md:p-8">
+        <div className="max-w-2xl space-y-4">
+          <Badge variant="destructive" className="gap-1.5">
+            <Shield className="h-3.5 w-3.5" />
+            Administrator portal
+          </Badge>
+          <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">
+            Ops console, {username}.
           </h1>
-          <p className="text-zinc-400 text-sm md:text-base leading-relaxed">
-            Overview of global compute systems, direct Neon database pools, and system security logs.
+          <p className="text-sm text-muted-foreground md:text-base">
+            Live platform metrics, role management, and recent security audit
+            events.
           </p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link href="/dashboard/students">Manage users</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/submissions">Review labs</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/manage-courses">Courses</Link>
+            </Button>
+          </div>
         </div>
       </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {systems.map((system, idx) => (
-          <div key={idx} className="p-6 rounded-2xl bg-zinc-950/40 border border-zinc-800 space-y-2">
-            <div className="text-3xl">{system.icon}</div>
-            <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">{system.title}</div>
-            <div className="text-xl font-bold text-white">{system.value}</div>
-            <div className="text-[10px] text-zinc-400">{system.detail}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="p-6 rounded-2xl border border-zinc-800 bg-zinc-950/20 space-y-4">
-        <h3 className="text-sm font-bold text-white">Direct Security Audit Log</h3>
-        <div className="space-y-2 text-xs font-mono">
-          {auditLogs.map((log, idx) => (
-            <div key={idx} className="flex justify-between p-2 rounded-lg bg-zinc-900/30 border border-zinc-850 text-zinc-400">
-              <div className="flex gap-3">
-                <span className="text-zinc-600">[{log.time}]</span>
-                <span className="text-cyber-purple font-bold">{log.action}</span>
-                <span>{log.desc}</span>
-              </div>
-              <span className="text-zinc-600">{log.ip}</span>
-            </div>
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-28 rounded-2xl" />
           ))}
         </div>
-      </div>
-    </>
+      ) : error ? (
+        <ErrorState title="Could not load ops data" message={error} />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {metrics.map((metric) => (
+              <Card key={metric.title}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <metric.icon className="h-4 w-4" />
+                    <CardDescription className="text-[10px] font-bold uppercase tracking-wider">
+                      {metric.title}
+                    </CardDescription>
+                  </div>
+                  <CardTitle className="text-2xl">{metric.value}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground">
+                    {metric.detail}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Security audit log</CardTitle>
+              <CardDescription>
+                Recent role changes, lab submits, and platform actions.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {audit.length === 0 ? (
+                <EmptyState
+                  title="No audit events yet"
+                  description="Role changes and lab activity will appear here."
+                />
+              ) : (
+                audit.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex flex-col gap-1 rounded-xl border border-border bg-muted/20 px-3 py-2 font-mono text-xs sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+                      <span className="text-muted-foreground/70">
+                        [{new Date(entry.timestamp).toLocaleTimeString()}]
+                      </span>
+                      <span className="font-bold text-foreground">
+                        {entry.action}
+                      </span>
+                      <span>{formatAuditDetail(entry)}</span>
+                    </div>
+                    <span className="shrink-0 text-muted-foreground/70">
+                      {entry.ipAddress || entry.user?.email || "—"}
+                    </span>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
   );
 }

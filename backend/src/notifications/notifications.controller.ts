@@ -148,7 +148,7 @@ export class NotificationsController {
       body: body.body,
       tag: body.tag,
     });
-    return { success: true };
+    return { success: true, queued: true };
   }
 
   @Post("broadcast")
@@ -165,6 +165,6 @@ export class NotificationsController {
       body: body.body,
       tag: body.tag,
     });
-    return { success: true };
+    return { success: true, queued: true };
   }
 }

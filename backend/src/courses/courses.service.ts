@@ -410,4 +410,50 @@ export class CoursesService {
       },
     });
   }
+
+  async listEnrolledStudents(courseId?: string) {
+    if (courseId) {
+      const course = await this.prisma.course.findUnique({
+        where: { id: courseId },
+        select: { id: true },
+      });
+      if (!course) {
+        throw new NotFoundException(`Course with ID ${courseId} not found`);
+      }
+    }
+
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: courseId ? { courseId } : undefined,
+      orderBy: { joinedAt: "desc" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            xp: true,
+            level: true,
+            streak: true,
+            createdAt: true,
+          },
+        },
+        course: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+          },
+        },
+      },
+    });
+
+    return enrollments.map((row) => ({
+      enrollmentId: row.id,
+      joinedAt: row.joinedAt,
+      completed: row.completed,
+      user: row.user,
+      course: row.course,
+    }));
+  }
 }

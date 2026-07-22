@@ -244,6 +244,24 @@ export class CoursesController {
     return this.coursesService.getMyProgress(req.user.id);
   }
 
+  @Get("students")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("INSTRUCTOR", "ADMIN")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "List enrolled students across all courses" })
+  listStudents() {
+    return this.coursesService.listEnrolledStudents();
+  }
+
+  @Get(":id/students")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("INSTRUCTOR", "ADMIN")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "List enrolled students for a course" })
+  listCourseStudents(@Param("id") id: string) {
+    return this.coursesService.listEnrolledStudents(id);
+  }
+
   @Get(":id/curriculum")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("INSTRUCTOR", "ADMIN")

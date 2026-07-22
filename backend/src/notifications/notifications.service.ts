@@ -1,7 +1,15 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { InjectQueue } from "@nestjs/bullmq";
+import { Queue } from "bullmq";
 import * as webPush from "web-push";
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  isRedisEnabled,
+  NOTIFICATIONS_QUEUE,
+  NotificationJobData,
+  NotificationJobPayload,
+} from "../queues/queue.constants";
 
 interface PushSubscription {
   endpoint: string;
@@ -11,25 +19,21 @@ interface PushSubscription {
   };
 }
 
-interface NotificationPayload {
-  title: string;
-  body: string;
-  icon?: string;
-  badge?: string;
-  data?: Record<string, unknown>;
-  tag?: string;
-}
-
 @Injectable()
 export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);
+  private queueEnabled = false;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    @InjectQueue(NOTIFICATIONS_QUEUE)
+    private readonly notificationsQueue: Queue<NotificationJobData>,
   ) {}
 
   onModuleInit() {
+    this.queueEnabled = isRedisEnabled(this.configService);
+
     try {
       const publicKey = this.configService.get<string>("VAPID_PUBLIC_KEY");
       const privateKey = this.configService.get<string>("VAPID_PRIVATE_KEY");
@@ -43,7 +47,9 @@ export class NotificationsService implements OnModuleInit {
       }
 
       webPush.setVapidDetails(email, publicKey, privateKey);
-      this.logger.log("Web push notifications initialized");
+      this.logger.log(
+        `Web push initialized (queue=${this.queueEnabled ? "bullmq" : "sync"})`,
+      );
     } catch (err) {
       this.logger.warn("Failed to initialize VAPID: " + err.message);
     }
@@ -81,9 +87,54 @@ export class NotificationsService implements OnModuleInit {
     this.logger.log(`Push subscription removed for user ${userId}`);
   }
 
+  /** Enqueue (or sync-deliver) a push to one user. */
   async sendToUser(
     userId: string,
-    payload: NotificationPayload,
+    payload: NotificationJobPayload,
+  ): Promise<void> {
+    if (!this.queueEnabled) {
+      await this.deliverToUser(userId, payload);
+      return;
+    }
+
+    try {
+      await this.notificationsQueue.add(
+        "send-user",
+        { type: "send-user", userId, payload },
+        { jobId: `user-${userId}-${payload.tag || Date.now()}` },
+      );
+      this.logger.log(`Queued push for user ${userId}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Queue enqueue failed (${message}); delivering sync`);
+      await this.deliverToUser(userId, payload);
+    }
+  }
+
+  /** Enqueue (or sync-deliver) a broadcast push. */
+  async sendToAll(payload: NotificationJobPayload): Promise<void> {
+    if (!this.queueEnabled) {
+      await this.deliverToAll(payload);
+      return;
+    }
+
+    try {
+      await this.notificationsQueue.add(
+        "broadcast",
+        { type: "broadcast", payload },
+        { jobId: `broadcast-${payload.tag || Date.now()}` },
+      );
+      this.logger.log("Queued broadcast push");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Queue enqueue failed (${message}); delivering sync`);
+      await this.deliverToAll(payload);
+    }
+  }
+
+  async deliverToUser(
+    userId: string,
+    payload: NotificationJobPayload,
   ): Promise<void> {
     const subscriptions = await this.prisma.pushSubscription.findMany({
       where: { userId },
@@ -125,7 +176,7 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
-  async sendToAll(payload: NotificationPayload): Promise<void> {
+  async deliverToAll(payload: NotificationJobPayload): Promise<void> {
     const users = await this.prisma.pushSubscription.findMany({
       select: { userId: true },
       distinct: ["userId"],
@@ -133,7 +184,7 @@ export class NotificationsService implements OnModuleInit {
 
     for (const { userId } of users) {
       this.logger.log(`Broadcast to ${userId}`);
-      await this.sendToUser(userId, payload);
+      await this.deliverToUser(userId, payload);
     }
   }
 

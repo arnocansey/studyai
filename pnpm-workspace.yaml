@@ -1,15 +1,17 @@
 packages:
-  - 'frontend'
-  - 'backend'
-  - 'mobile'
-  - 'api'
+  - "frontend"
+  - "backend"
+  - "mobile"
+  - "api"
 minimumReleaseAge: 0
+shamefullyHoist: true
 allowBuilds:
-  '@nestjs/core': true
-  '@prisma/client': true
-  '@prisma/engines': true
-  '@scarf/scarf': true
+  "@nestjs/core": true
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@scarf/scarf": true
   bcrypt: true
+  msgpackr-extract: true
   prisma: true
   sharp: true
   unrs-resolver: true

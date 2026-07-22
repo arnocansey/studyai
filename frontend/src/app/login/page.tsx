@@ -1,19 +1,38 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth-provider";
 import { Logo } from "@/components/brand";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, loginWithGoogle, loginWithGitHub } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [providers, setProviders] = useState({ google: false, github: false });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get("error");
+    if (oauthError) {
+      setError(decodeURIComponent(oauthError));
+    }
+    fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1"}/auth/providers`,
+    )
+      .then((r) => r.json())
+      .then((data) =>
+        setProviders({ google: !!data.google, github: !!data.github }),
+      )
+      .catch(() => {});
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,14 +65,18 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center space-y-3">
           <Logo size="lg" />
           <div className="space-y-1">
-            <p className="text-xs text-zinc-500 font-medium">Enter your credentials to access the laboratory.</p>
+            <p className="text-xs text-zinc-500 font-medium">
+              Enter your credentials to access the laboratory.
+            </p>
           </div>
         </div>
 
         {/* Form */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Email Address</label>
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+              Email Address
+            </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-zinc-600 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -68,7 +91,9 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Password</label>
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+              Password
+            </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-zinc-600 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -96,10 +121,47 @@ export default function LoginPage() {
           </button>
         </form>
 
+        {(providers.google || providers.github) && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <Separator className="flex-1" />
+              <span className="text-[10px] uppercase tracking-wider text-zinc-600">
+                or
+              </span>
+              <Separator className="flex-1" />
+            </div>
+            <div className="grid gap-2">
+              {providers.google && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={loginWithGoogle}
+                >
+                  Continue with Google
+                </Button>
+              )}
+              {providers.github && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={loginWithGitHub}
+                >
+                  Continue with GitHub
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="text-center pt-2">
           <p className="text-[10px] text-zinc-500">
             Don&apos;t have an account?{" "}
-            <Link href="/signup" className="text-cyber-purple font-bold hover:underline">
+            <Link
+              href="/signup"
+              className="text-cyber-purple font-bold hover:underline"
+            >
               Sign Up
             </Link>
           </p>

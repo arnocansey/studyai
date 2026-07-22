@@ -13,6 +13,15 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { EmptyState, ErrorState } from "@/components/ui/states";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 interface Course {
   id: string;
@@ -239,329 +248,318 @@ export default function ManageCoursesPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyber-purple">
-            Instructor Console
-          </p>
-          <h1 className="mt-2 text-3xl font-extrabold text-white">
+          <Badge className="mb-2">Instructor Console</Badge>
+          <h1 className="text-3xl font-extrabold tracking-tight">
             Manage Courses
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-400">
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             Create courses, then build modules and lessons in the curriculum
             editor.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 rounded-xl border border-cyber-purple/40 bg-cyber-purple/10 px-4 py-2 text-xs font-bold text-cyber-purple hover:bg-cyber-purple/20"
-        >
+        <Button onClick={() => setShowCreate(true)}>
           <Plus className="h-4 w-4" />
-          Create Course
-        </button>
+          Create course
+        </Button>
       </div>
 
-      {error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
-          {error}
-        </div>
-      )}
+      {error ? (
+        <ErrorState message={error} onRetry={() => void loadCourses()} />
+      ) : null}
 
-      {showCreate && (
-        <form
-          onSubmit={createCourse}
-          className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-5"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-white">New course</h2>
-            <button
+      {showCreate ? (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle>New course</CardTitle>
+            <Button
+              variant="ghost"
+              size="icon"
               type="button"
               onClick={() => setShowCreate(false)}
-              className="text-zinc-500 hover:text-white"
             >
               <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1 text-xs text-zinc-400">
-              Title
-              <input
-                required
-                value={form.title}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, title: e.target.value }))
-                }
-                className="h-10 w-full rounded-xl border border-zinc-800 bg-[#030303] px-3 text-sm text-zinc-100 outline-none"
-              />
-            </label>
-            <label className="space-y-1 text-xs text-zinc-400">
-              Slug
-              <input
-                value={form.slug}
-                placeholder={slugPreview}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, slug: e.target.value }))
-                }
-                className="h-10 w-full rounded-xl border border-zinc-800 bg-[#030303] px-3 text-sm text-zinc-100 outline-none"
-              />
-            </label>
-          </div>
-          <label className="block space-y-1 text-xs text-zinc-400">
-            Description
-            <textarea
-              required
-              value={form.description}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
-              }
-              rows={3}
-              className="w-full rounded-xl border border-zinc-800 bg-[#030303] px-3 py-2 text-sm text-zinc-100 outline-none"
-            />
-          </label>
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="space-y-1 text-xs text-zinc-400">
-              Difficulty
-              <select
-                value={form.difficulty}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, difficulty: e.target.value }))
-                }
-                className="ml-2 h-10 rounded-xl border border-zinc-800 bg-[#030303] px-3 text-sm text-zinc-100 outline-none"
-              >
-                <option value="BEGINNER">Beginner</option>
-                <option value="INTERMEDIATE">Intermediate</option>
-                <option value="ADVANCED">Advanced</option>
-              </select>
-            </label>
-            <label className="inline-flex items-center gap-2 text-xs text-zinc-400">
-              <input
-                type="checkbox"
-                checked={form.published}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, published: e.target.checked }))
-                }
-              />
-              Publish immediately
-            </label>
-            <button
-              type="submit"
-              disabled={saving}
-              className="ml-auto rounded-xl bg-cyber-purple px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save course"}
-            </button>
-          </div>
-        </form>
-      )}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={createCourse} className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Title</Label>
+                  <Input
+                    id="title"
+                    required
+                    value={form.title}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, title: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="slug">Slug</Label>
+                  <Input
+                    id="slug"
+                    value={form.slug}
+                    placeholder={slugPreview}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, slug: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  required
+                  rows={3}
+                  value={form.description}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, description: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="difficulty">Difficulty</Label>
+                  <select
+                    id="difficulty"
+                    value={form.difficulty}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, difficulty: e.target.value }))
+                    }
+                    className="h-10 rounded-xl border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="BEGINNER">Beginner</option>
+                    <option value="INTERMEDIATE">Intermediate</option>
+                    <option value="ADVANCED">Advanced</option>
+                  </select>
+                </div>
+                <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={form.published}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, published: e.target.checked }))
+                    }
+                  />
+                  Publish immediately
+                </label>
+                <Button type="submit" disabled={saving} className="ml-auto">
+                  {saving ? "Saving…" : "Save course"}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
         <div className="space-y-4">
           {loading ? (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/50 p-8 text-sm text-zinc-400">
-              Loading courses...
+            <div className="space-y-3">
+              <Skeleton className="h-28 w-full" />
+              <Skeleton className="h-28 w-full" />
             </div>
           ) : courses.length === 0 ? (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/50 p-8 text-center">
-              <ShieldAlert className="mx-auto h-10 w-10 text-zinc-600" />
-              <p className="mt-3 text-sm font-semibold text-zinc-300">
-                No courses yet. Create your first draft.
-              </p>
-            </div>
+            <EmptyState
+              icon={ShieldAlert}
+              title="No courses yet"
+              description="Create your first draft to start building curriculum."
+              action={{
+                label: "Create course",
+                onClick: () => setShowCreate(true),
+              }}
+            />
           ) : (
             courses.map((course) => (
-              <article
+              <Card
                 key={course.id}
-                className={`rounded-2xl border p-5 ${
-                  selectedId === course.id
-                    ? "border-cyber-purple/50 bg-cyber-purple/5"
-                    : "border-zinc-800 bg-zinc-950/50"
-                }`}
+                className={cn(
+                  selectedId === course.id && "border-primary/50 bg-primary/5",
+                )}
               >
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
                   <div className="flex gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900">
-                      <BookOpen className="h-5 w-5 text-cyber-purple" />
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-muted">
+                      <BookOpen className="h-5 w-5 text-primary" />
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="font-bold text-zinc-100">
-                          {course.title}
-                        </h2>
-                        <span className="rounded-full border border-zinc-800 px-2 py-0.5 text-[10px] uppercase text-zinc-500">
-                          {course.difficulty}
-                        </span>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] uppercase ${
-                            course.published
-                              ? "bg-cyber-green/10 text-cyber-green"
-                              : "bg-zinc-800 text-zinc-400"
-                          }`}
+                        <h2 className="font-bold">{course.title}</h2>
+                        <Badge variant="outline">{course.difficulty}</Badge>
+                        <Badge
+                          variant={course.published ? "success" : "secondary"}
                         >
                           {course.published ? "Published" : "Draft"}
-                        </span>
+                        </Badge>
                       </div>
-                      <p className="mt-1 line-clamp-2 text-sm text-zinc-400">
+                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                         {course.description}
                       </p>
-                      <p className="mt-2 text-xs text-zinc-600">
-                        {course._count?.modules ?? 0} modules •{" "}
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {course._count?.modules ?? 0} modules ·{" "}
                         {course._count?.enrollments ?? 0} enrollments
                       </p>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => void loadCurriculum(course.id)}
-                      className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2 text-xs font-semibold text-zinc-300 hover:text-white"
                     >
                       Edit curriculum
-                    </button>
-                    <button
-                      onClick={() => togglePublished(course)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2 text-xs font-semibold text-zinc-300 hover:text-white"
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void togglePublished(course)}
                     >
                       <ToggleLeft className="h-4 w-4" />
                       {course.published ? "Unpublish" : "Publish"}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => router.push(`/?course=${course.slug}`)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2 text-xs font-semibold text-zinc-300 hover:text-white"
                     >
                       <Eye className="h-4 w-4" />
                       Preview
-                    </button>
+                    </Button>
                   </div>
-                </div>
-              </article>
+                </CardContent>
+              </Card>
             ))
           )}
         </div>
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/50 p-5">
-          {!selectedId ? (
-            <div className="flex min-h-[420px] flex-col items-center justify-center text-center">
-              <BookOpen className="h-12 w-12 text-zinc-700" />
-              <p className="mt-4 text-sm font-semibold text-zinc-300">
-                Select a course to edit its curriculum
-              </p>
-            </div>
-          ) : curriculumLoading ? (
-            <p className="text-sm text-zinc-400">Loading curriculum…</p>
-          ) : curriculum ? (
-            <div className="space-y-5">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                  Curriculum
-                </p>
-                <h2 className="mt-1 text-xl font-bold text-white">
-                  {curriculum.title}
-                </h2>
+        <Card className="min-h-[420px]">
+          <CardContent className="p-5">
+            {!selectedId ? (
+              <EmptyState
+                icon={BookOpen}
+                title="Select a course"
+                description="Choose a course on the left to edit its curriculum."
+              />
+            ) : curriculumLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
               </div>
+            ) : curriculum ? (
+              <div className="space-y-5">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Curriculum
+                  </p>
+                  <h2 className="mt-1 text-xl font-bold">{curriculum.title}</h2>
+                </div>
 
-              <div className="flex gap-2">
-                <input
-                  value={moduleTitle}
-                  onChange={(e) => setModuleTitle(e.target.value)}
-                  placeholder="New module title"
-                  className="h-10 flex-1 rounded-xl border border-zinc-800 bg-[#030303] px-3 text-sm text-zinc-100 outline-none"
-                />
-                <button
-                  onClick={addModule}
-                  className="rounded-xl bg-cyber-purple px-4 text-xs font-bold text-white"
-                >
-                  Add module
-                </button>
-              </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={moduleTitle}
+                    onChange={(e) => setModuleTitle(e.target.value)}
+                    placeholder="New module title"
+                  />
+                  <Button onClick={() => void addModule()}>Add module</Button>
+                </div>
 
-              <div className="space-y-4">
                 {curriculum.modules.length === 0 ? (
-                  <p className="text-sm text-zinc-500">No modules yet.</p>
+                  <p className="text-sm text-muted-foreground">
+                    No modules yet.
+                  </p>
                 ) : (
                   curriculum.modules.map((mod) => (
-                    <div
-                      key={mod.id}
-                      className="rounded-xl border border-zinc-800 bg-[#030303] p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="font-semibold text-zinc-100">
+                    <Card key={mod.id} className="bg-muted/20">
+                      <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+                        <CardTitle className="text-base">
                           Module {mod.order}: {mod.title}
-                        </h3>
-                        <button
+                        </CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => void deleteModule(mod.id)}
-                          className="text-zinc-500 hover:text-red-400"
+                          aria-label="Delete module"
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      <div className="mt-3 space-y-2">
+                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
                         {mod.lessons.map((lesson) => (
                           <div
                             key={lesson.id}
-                            className="flex items-center justify-between rounded-lg border border-zinc-800/80 bg-zinc-950 px-3 py-2 text-sm"
+                            className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2"
                           >
                             <div>
-                              <p className="text-zinc-200">{lesson.title}</p>
-                              <p className="text-[10px] uppercase tracking-wider text-zinc-500">
+                              <p className="text-sm font-medium">
+                                {lesson.title}
+                              </p>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                                 {lesson.type}
                               </p>
                             </div>
-                            <button
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => void deleteLesson(lesson.id)}
-                              className="text-zinc-600 hover:text-red-400"
+                              aria-label="Delete lesson"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                              <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
                           </div>
                         ))}
-                      </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <input
-                          value={lessonForms[mod.id]?.title || ""}
-                          onChange={(e) =>
-                            setLessonForms((current) => ({
-                              ...current,
-                              [mod.id]: {
-                                title: e.target.value,
-                                type: current[mod.id]?.type || "TEXT",
-                              },
-                            }))
-                          }
-                          placeholder="New lesson title"
-                          className="h-9 min-w-[160px] flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-xs text-zinc-100 outline-none"
-                        />
-                        <select
-                          value={lessonForms[mod.id]?.type || "TEXT"}
-                          onChange={(e) =>
-                            setLessonForms((current) => ({
-                              ...current,
-                              [mod.id]: {
-                                title: current[mod.id]?.title || "",
-                                type: e.target.value,
-                              },
-                            }))
-                          }
-                          className="h-9 rounded-lg border border-zinc-800 bg-zinc-950 px-2 text-xs text-zinc-300 outline-none"
-                        >
-                          {LESSON_TYPES.map((type) => (
-                            <option key={type} value={type}>
-                              {type}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => void addLesson(mod.id)}
-                          className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 text-xs font-semibold text-zinc-300 hover:text-white"
-                        >
-                          Add lesson
-                        </button>
-                      </div>
-                    </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <Input
+                            value={lessonForms[mod.id]?.title || ""}
+                            onChange={(e) =>
+                              setLessonForms((current) => ({
+                                ...current,
+                                [mod.id]: {
+                                  title: e.target.value,
+                                  type: current[mod.id]?.type || "TEXT",
+                                },
+                              }))
+                            }
+                            placeholder="New lesson title"
+                            className="min-w-[160px] flex-1"
+                          />
+                          <select
+                            value={lessonForms[mod.id]?.type || "TEXT"}
+                            onChange={(e) =>
+                              setLessonForms((current) => ({
+                                ...current,
+                                [mod.id]: {
+                                  title: current[mod.id]?.title || "",
+                                  type: e.target.value,
+                                },
+                              }))
+                            }
+                            className="h-10 rounded-xl border border-input bg-background px-2 text-xs"
+                          >
+                            {LESSON_TYPES.map((type) => (
+                              <option key={type} value={type}>
+                                {type}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void addLesson(mod.id)}
+                          >
+                            Add lesson
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))
                 )}
               </div>
-            </div>
-          ) : null}
-        </div>
+            ) : null}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
