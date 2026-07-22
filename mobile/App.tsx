@@ -1,35 +1,44 @@
-import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View, ActivityIndicator, StyleSheet, Linking } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useState } from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import {
+  Text,
+  View,
+  ActivityIndicator,
+  StyleSheet,
+  Linking,
+} from "react-native";
+import { StatusBar } from "expo-status-bar";
 
 // Providers
-import { UserProvider, useUser } from './src/context/UserContext';
-import { ThemeProvider, useTheme } from './src/context/ThemeContext';
-import { UpdateProvider } from './src/components/UpdateManager';
+import { UserProvider, useUser } from "./src/context/UserContext";
+import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
+import { UpdateProvider } from "./src/components/UpdateManager";
 
 // Services
-import { notificationsApi } from './src/services/notifications';
-import { chatService } from './src/services/chat';
+import { notificationsApi } from "./src/services/notifications";
+import { chatService } from "./src/services/chat";
 
 // Components
-import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { ErrorBoundary } from "./src/components/ErrorBoundary";
 
 // Screens
-import { LoginScreen } from './src/screens/LoginScreen';
-import { DashboardScreen } from './src/screens/DashboardScreen';
-import { GamificationScreen } from './src/screens/GamificationScreen';
-import { SocialScreen } from './src/screens/SocialScreen';
-import { ChatScreen } from './src/screens/ChatScreen';
-import { ProfileScreen } from './src/screens/ProfileScreen';
-import { ChallengesScreen } from './src/screens/ChallengesScreen';
-import { VideoCallScreen } from './src/screens/VideoCallScreen';
-import { CertificatesScreen } from './src/screens/CertificatesScreen';
-import { SkillTreeScreen } from './src/screens/SkillTreeScreen';
-import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
-import { SettingsScreen } from './src/screens/SettingsScreen';
+import { LoginScreen } from "./src/screens/LoginScreen";
+import { DashboardScreen } from "./src/screens/DashboardScreen";
+import { GamificationScreen } from "./src/screens/GamificationScreen";
+import { SocialScreen } from "./src/screens/SocialScreen";
+import { ChatScreen } from "./src/screens/ChatScreen";
+import { ProfileScreen } from "./src/screens/ProfileScreen";
+import { ChallengesScreen } from "./src/screens/ChallengesScreen";
+import { VideoCallScreen } from "./src/screens/VideoCallScreen";
+import { CertificatesScreen } from "./src/screens/CertificatesScreen";
+import { SkillTreeScreen } from "./src/screens/SkillTreeScreen";
+import { AnalyticsScreen } from "./src/screens/AnalyticsScreen";
+import { SettingsScreen } from "./src/screens/SettingsScreen";
+import { CourseDetailScreen } from "./src/screens/CourseDetailScreen";
+import { LessonScreen } from "./src/screens/LessonScreen";
+import { StudyPlanScreen } from "./src/screens/StudyPlanScreen";
 
 // Types
 type RootStackParamList = {
@@ -41,6 +50,9 @@ type RootStackParamList = {
   Analytics: undefined;
   Settings: undefined;
   Chat: undefined;
+  CourseDetail: { slug: string };
+  Lesson: { lessonId: string; courseTitle?: string; lessonTitle?: string };
+  StudyPlan: undefined;
 };
 
 type TabParamList = {
@@ -55,15 +67,15 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
 const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
-  Dashboard: { active: '🏠', inactive: '🏡' },
-  Gamification: { active: '🏆', inactive: '🥇' },
-  Challenges: { active: '🎯', inactive: '🏹' },
-  Social: { active: '👥', inactive: '👤' },
-  Profile: { active: '🧑‍💻', inactive: '👤' },
+  Dashboard: { active: "🏠", inactive: "🏡" },
+  Gamification: { active: "🏆", inactive: "🥇" },
+  Challenges: { active: "🎯", inactive: "🏹" },
+  Social: { active: "👥", inactive: "👤" },
+  Profile: { active: "🧑‍💻", inactive: "👤" },
 };
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
-  const iconSet = TAB_ICONS[name] || { active: '📌', inactive: '📌' };
+  const iconSet = TAB_ICONS[name] || { active: "📌", inactive: "📌" };
   return (
     <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>
       {focused ? iconSet.active : iconSet.inactive}
@@ -94,7 +106,7 @@ function MainTabs() {
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '600',
+          fontWeight: "600",
           marginTop: 2,
         },
         tabBarIcon: ({ focused }) => (
@@ -112,17 +124,20 @@ function MainTabs() {
 }
 
 const linking = {
-  prefixes: ['studyai://', 'https://studyai.app'],
+  prefixes: ["studyai://", "https://studyai.app"],
   config: {
     screens: {
-      Login: 'login',
-      Main: 'main',
-      Certificates: 'certificates',
-      SkillTree: 'skill-tree',
-      Analytics: 'analytics',
-      Settings: 'settings',
-      Chat: 'chat',
-      VideoCall: 'video-call/:roomId',
+      Login: "login",
+      Main: "main",
+      Certificates: "certificates",
+      SkillTree: "skill-tree",
+      Analytics: "analytics",
+      Settings: "settings",
+      Chat: "chat",
+      VideoCall: "video-call/:roomId",
+      CourseDetail: "course/:slug",
+      Lesson: "lesson/:lessonId",
+      StudyPlan: "study-plan",
     },
   },
 };
@@ -143,7 +158,7 @@ function AppContent() {
       chatService.connect().catch(() => {});
 
       const unsub = notificationsApi.addNotificationListener((notification) => {
-        console.log('[Notification]', notification?.request?.content?.title);
+        console.log("[Notification]", notification?.request?.content?.title);
       });
 
       return () => {
@@ -158,12 +173,14 @@ function AppContent() {
   if (isLoading) {
     return (
       <View style={[styles.splash, { backgroundColor: colors.bg }]}>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <StatusBar style={isDark ? "light" : "dark"} />
         <Text style={styles.splashIcon}>🎓</Text>
         <Text style={[styles.splashTitle, { color: colors.text }]}>
           Study<Text style={{ color: colors.accent }}>AI</Text>
         </Text>
-        <Text style={[styles.splashSubtitle, { color: colors.textMuted }]}>Interactive Tech Education</Text>
+        <Text style={[styles.splashSubtitle, { color: colors.textMuted }]}>
+          Interactive Tech Education
+        </Text>
         <View style={styles.splashLoader}>
           <ActivityIndicator size="large" color={colors.accent} />
         </View>
@@ -173,13 +190,14 @@ function AppContent() {
 
   return (
     <NavigationContainer linking={linking}>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-      <Stack.Navigator id="RootStack" screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+      <StatusBar style={isDark ? "light" : "dark"} />
+      <Stack.Navigator
+        id="RootStack"
+        screenOptions={{ headerShown: false, animation: "slide_from_right" }}
+      >
         {!isAuthenticated ? (
           <Stack.Screen name="Login">
-            {(props) => (
-              <LoginScreen {...props} onLogin={() => {}} />
-            )}
+            {(props) => <LoginScreen {...props} onLogin={() => {}} />}
           </Stack.Screen>
         ) : (
           <>
@@ -187,32 +205,50 @@ function AppContent() {
             <Stack.Screen
               name="VideoCall"
               component={VideoCallScreen}
-              options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
+              options={{
+                presentation: "fullScreenModal",
+                animation: "slide_from_bottom",
+              }}
             />
             <Stack.Screen
               name="Certificates"
               component={CertificatesScreen}
-              options={{ animation: 'slide_from_right' }}
+              options={{ animation: "slide_from_right" }}
             />
             <Stack.Screen
               name="SkillTree"
               component={SkillTreeScreen}
-              options={{ animation: 'slide_from_right' }}
+              options={{ animation: "slide_from_right" }}
             />
             <Stack.Screen
               name="Analytics"
               component={AnalyticsScreen}
-              options={{ animation: 'slide_from_right' }}
+              options={{ animation: "slide_from_right" }}
             />
             <Stack.Screen
               name="Settings"
               component={SettingsScreen}
-              options={{ animation: 'slide_from_right' }}
+              options={{ animation: "slide_from_right" }}
             />
             <Stack.Screen
               name="Chat"
               component={ChatScreen}
-              options={{ animation: 'slide_from_right' }}
+              options={{ animation: "slide_from_right" }}
+            />
+            <Stack.Screen
+              name="CourseDetail"
+              component={CourseDetailScreen}
+              options={{ animation: "slide_from_right" }}
+            />
+            <Stack.Screen
+              name="Lesson"
+              component={LessonScreen}
+              options={{ animation: "slide_from_right" }}
+            />
+            <Stack.Screen
+              name="StudyPlan"
+              component={StudyPlanScreen}
+              options={{ animation: "slide_from_right" }}
             />
           </>
         )}
@@ -237,10 +273,12 @@ export default function App() {
 
 const styles = StyleSheet.create({
   splash: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   splashIcon: { fontSize: 64, marginBottom: 16 },
-  splashTitle: { fontSize: 36, fontWeight: '800', letterSpacing: -1 },
+  splashTitle: { fontSize: 36, fontWeight: "800", letterSpacing: -1 },
   splashSubtitle: { fontSize: 14, marginTop: 8, letterSpacing: 2 },
   splashLoader: { marginTop: 40 },
 });

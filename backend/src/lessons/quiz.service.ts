@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { XpService } from '../gamification/xp.service';
-import { AchievementService } from '../gamification/achievement.service';
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { XpService } from "../gamification/xp.service";
+import { AchievementService } from "../gamification/achievement.service";
 
 @Injectable()
 export class QuizService {
@@ -14,14 +14,12 @@ export class QuizService {
   ) {}
 
   async getQuizForLesson(lessonId: string, userId: string) {
-    // Get user's lesson progress for this lesson
     const lessonProgress = await this.prisma.lessonProgress.findUnique({
       where: {
         userId_lessonId: { userId, lessonId },
       },
     });
 
-    // Get all questions for this lesson
     const questions = await this.prisma.quizQuestion.findMany({
       where: { lessonId },
     });
@@ -34,7 +32,6 @@ export class QuizService {
         id: q.id,
         question: q.question,
         options: q.options,
-        // Don't send correct answer to client
       })),
       masteryLevel,
       totalQuestions: questions.length,
@@ -48,74 +45,116 @@ export class QuizService {
       include: { lesson: true },
     });
 
-    if (!question) throw new Error('Question not found');
+    if (!question) throw new NotFoundException("Question not found");
 
-    const isCorrect = question.correctAnswer.trim().toLowerCase() === answer.trim().toLowerCase();
+    const isCorrect =
+      question.correctAnswer.trim().toLowerCase() ===
+      answer.trim().toLowerCase();
 
-    // Award XP based on correctness
     let xpAwarded = 0;
+
     if (isCorrect) {
-      xpAwarded = 25; // Base XP for correct answer
-      await this.xpService.addXP(userId, xpAwarded, 'Quiz correct answer');
+      const awardKey = `QUIZ_CORRECT:${questionId}`;
+      const alreadyAwarded = await this.prisma.auditLog.findFirst({
+        where: { userId, action: awardKey },
+        select: { id: true },
+      });
+
+      if (!alreadyAwarded) {
+        xpAwarded = 25;
+        await this.xpService.addXP(userId, xpAwarded, "Quiz correct answer");
+        await this.prisma.auditLog.create({
+          data: {
+            userId,
+            action: awardKey,
+            details: { questionId, lessonId: question.lessonId },
+          },
+        });
+      }
+
+      await this.maybeCompleteLesson(userId, question.lessonId);
+      await this.achievementService.checkAndAwardAchievements(userId);
     }
-
-    // Update lesson progress
-    await this.prisma.lessonProgress.upsert({
-      where: {
-        userId_lessonId: { userId, lessonId: question.lessonId },
-      },
-      update: {
-        completed: isCorrect,
-        completedAt: isCorrect ? new Date() : undefined,
-      },
-      create: {
-        userId,
-        lessonId: question.lessonId,
-        completed: isCorrect,
-        completedAt: isCorrect ? new Date() : undefined,
-      },
-    });
-
-    // Check achievements
-    await this.achievementService.checkAndAwardAchievements(userId);
 
     return {
       isCorrect,
-      message: isCorrect ? 'Correct answer!' : 'Incorrect. Try again.',
+      message: isCorrect ? "Correct answer!" : "Incorrect. Try again.",
       xpAwarded,
-      // Don't reveal correct answer
       correctAnswer: undefined,
     };
   }
 
+  private async maybeCompleteLesson(userId: string, lessonId: string) {
+    const existingProgress = await this.prisma.lessonProgress.findUnique({
+      where: { userId_lessonId: { userId, lessonId } },
+    });
+
+    if (existingProgress?.completed) {
+      return;
+    }
+
+    const questions = await this.prisma.quizQuestion.findMany({
+      where: { lessonId },
+      select: { id: true },
+    });
+
+    if (questions.length === 0) {
+      return;
+    }
+
+    const correctCount = await this.prisma.auditLog.count({
+      where: {
+        userId,
+        action: { in: questions.map((q) => `QUIZ_CORRECT:${q.id}`) },
+      },
+    });
+
+    if (correctCount < questions.length) {
+      return;
+    }
+
+    await this.prisma.lessonProgress.upsert({
+      where: {
+        userId_lessonId: { userId, lessonId },
+      },
+      update: {
+        completed: true,
+        completedAt: new Date(),
+      },
+      create: {
+        userId,
+        lessonId,
+        completed: true,
+        completedAt: new Date(),
+      },
+    });
+  }
+
   async getAdaptiveQuiz(userId: string, topic: string, difficulty?: string) {
-    // Get user's skill level for this topic
     const userSkills = await this.prisma.userSkill.findMany({
       where: { userId },
       include: { skill: true },
     });
 
     const topicSkill = userSkills.find(
-      (s) => s.skill.category === topic || s.skill.name.includes(topic)
+      (s) => s.skill.category === topic || s.skill.name.includes(topic),
     );
 
     const currentLevel = topicSkill?.level || 0;
 
-    // Determine appropriate difficulty
-    let targetDifficulty = difficulty || 'medium';
+    let targetDifficulty = difficulty || "medium";
     if (!difficulty) {
-      if (currentLevel < 30) targetDifficulty = 'easy';
-      else if (currentLevel < 70) targetDifficulty = 'medium';
-      else targetDifficulty = 'hard';
+      if (currentLevel < 30) targetDifficulty = "easy";
+      else if (currentLevel < 70) targetDifficulty = "medium";
+      else targetDifficulty = "hard";
     }
 
-    // Get questions matching difficulty
     const questions = await this.prisma.quizQuestion.findMany({
       where: {
         lesson: {
           module: {
             course: {
-              slug: { contains: topic, mode: 'insensitive' },
+              slug: { contains: topic, mode: "insensitive" },
             },
           },
         },
@@ -131,7 +170,7 @@ export class QuizService {
       })),
       difficulty: targetDifficulty,
       userLevel: currentLevel,
-      estimatedTime: questions.length * 2, // 2 minutes per question
+      estimatedTime: questions.length * 2,
     };
   }
 }

@@ -1,11 +1,21 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { 
-  BarChart3, TrendingUp, Clock, Award, Target, BookOpen, 
-  Calendar, Zap, Users, Flame, ArrowUp, ArrowDown
-} from 'lucide-react';
+import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  BarChart3,
+  Clock,
+  Award,
+  Target,
+  BookOpen,
+  Calendar,
+  Zap,
+  Flame,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
+import { apiFetch } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth-store";
 
 interface AnalyticsData {
   totalXP: number;
@@ -20,93 +30,212 @@ interface AnalyticsData {
   skillDistribution: { skill: string; level: number; color: string }[];
   recentAchievements: { name: string; icon: string; date: string }[];
   monthlyGoal: { current: number; target: number };
+  loading: boolean;
+  error: string;
 }
 
+const COLORS = [
+  "#3B82F6",
+  "#FBBF24",
+  "#10B981",
+  "#EF4444",
+  "#8B5CF6",
+  "#06B6D4",
+];
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 export function AnalyticsDashboard() {
-  const [data] = useState<AnalyticsData>({
-    totalXP: 45250,
-    xpTrend: 12.5,
-    studyHours: 128,
-    studyTrend: 8.3,
-    coursesCompleted: 12,
-    coursesTrend: 2,
-    streak: 15,
-    streakTrend: 5,
-    weeklyActivity: [
-      { day: 'Mon', hours: 2.5, xp: 450 },
-      { day: 'Tue', hours: 3.2, xp: 580 },
-      { day: 'Wed', hours: 1.8, xp: 320 },
-      { day: 'Thu', hours: 4.1, xp: 750 },
-      { day: 'Fri', hours: 2.9, xp: 520 },
-      { day: 'Sat', hours: 5.2, xp: 940 },
-      { day: 'Sun', hours: 3.8, xp: 680 },
-    ],
-    skillDistribution: [
-      { skill: 'Python', level: 85, color: '#3B82F6' },
-      { skill: 'JavaScript', level: 70, color: '#FBBF24' },
-      { skill: 'Networking', level: 60, color: '#10B981' },
-      { skill: 'Cybersecurity', level: 45, color: '#EF4444' },
-      { skill: 'Cloud', level: 30, color: '#8B5CF6' },
-    ],
-    recentAchievements: [
-      { name: 'Week Warrior', icon: '⚡', date: '2 days ago' },
-      { name: 'Lab Expert', icon: '🔬', date: '5 days ago' },
-      { name: 'XP Hunter', icon: '🚀', date: '1 week ago' },
-    ],
-    monthlyGoal: { current: 8500, target: 10000 },
+  const user = useAuthStore((s) => s.user);
+  const [data, setData] = useState<AnalyticsData>({
+    totalXP: user?.xp || 0,
+    xpTrend: 0,
+    studyHours: 0,
+    studyTrend: 0,
+    coursesCompleted: 0,
+    coursesTrend: 0,
+    streak: user?.streak || 0,
+    streakTrend: 0,
+    weeklyActivity: DAY_LABELS.map((day) => ({ day, hours: 0, xp: 0 })),
+    skillDistribution: [],
+    recentAchievements: [],
+    monthlyGoal: { current: 0, target: 10000 },
+    loading: true,
+    error: "",
   });
 
-  const maxHours = Math.max(...data.weeklyActivity.map((d) => d.hours));
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const [weekly, subjects, insights, xpProgress, achievements] =
+          await Promise.all([
+            apiFetch<Array<{ date: string; hours: number }>>(
+              "/analytics/weekly",
+            ),
+            apiFetch<{
+              courses: Array<{
+                courseName: string;
+                progress: number;
+                completedLessons: number;
+              }>;
+              overallProgress: number;
+            }>("/analytics/subjects"),
+            apiFetch<{
+              studyConsistency?: number;
+              comparisonToAverage?: number;
+            }>("/analytics/insights").catch(() => ({})),
+            apiFetch<{ xp: number; level: number }>(
+              "/gamification/xp-progress",
+            ).catch(() => ({
+              xp: user?.xp || 0,
+              level: 1,
+            })),
+            apiFetch<
+              Array<{
+                title?: string;
+                name?: string;
+                earned?: boolean;
+                earnedAt?: string | null;
+              }>
+            >("/gamification/achievements").catch(() => []),
+          ]);
+
+        if (cancelled) return;
+
+        const weeklyActivity = (weekly || []).map((row) => {
+          const day = DAY_LABELS[new Date(row.date).getDay()] || "Day";
+          return {
+            day,
+            hours: Number(row.hours) || 0,
+            xp: Math.round((Number(row.hours) || 0) * 180),
+          };
+        });
+
+        while (weeklyActivity.length < 7) {
+          weeklyActivity.unshift({ day: "—", hours: 0, xp: 0 });
+        }
+
+        const skillDistribution = (subjects?.courses || [])
+          .slice(0, 6)
+          .map((course, i) => ({
+            skill: course.courseName,
+            level: course.progress || 0,
+            color: COLORS[i % COLORS.length],
+          }));
+
+        const earned = (achievements || [])
+          .filter((a) => a.earned)
+          .slice(0, 3)
+          .map((a) => ({
+            name: a.title || a.name || "Achievement",
+            icon: "★",
+            date: a.earnedAt
+              ? new Date(a.earnedAt).toLocaleDateString()
+              : "Recently",
+          }));
+
+        const studyHours = weeklyActivity.reduce((sum, d) => sum + d.hours, 0);
+        const coursesCompleted = (subjects?.courses || []).filter(
+          (c) => c.progress >= 100,
+        ).length;
+
+        setData({
+          totalXP: xpProgress.xp ?? user?.xp ?? 0,
+          xpTrend: insights.comparisonToAverage || 0,
+          studyHours: Math.round(studyHours * 10) / 10,
+          studyTrend: insights.studyConsistency || 0,
+          coursesCompleted,
+          coursesTrend: subjects?.overallProgress || 0,
+          streak: user?.streak || 0,
+          streakTrend: 0,
+          weeklyActivity: weeklyActivity.slice(-7),
+          skillDistribution:
+            skillDistribution.length > 0
+              ? skillDistribution
+              : [{ skill: "No enrollments yet", level: 0, color: "#71717a" }],
+          recentAchievements: earned,
+          monthlyGoal: {
+            current: xpProgress.xp ?? user?.xp ?? 0,
+            target: Math.max(10000, (xpProgress.xp ?? 0) + 2000),
+          },
+          loading: false,
+          error: "",
+        });
+      } catch (err) {
+        if (cancelled) return;
+        setData((prev) => ({
+          ...prev,
+          loading: false,
+          error:
+            err instanceof Error ? err.message : "Failed to load analytics",
+        }));
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.xp, user?.streak]);
+
+  const maxHours = useMemo(
+    () => Math.max(1, ...data.weeklyActivity.map((d) => d.hours)),
+    [data.weeklyActivity],
+  );
+
+  if (data.loading) {
+    return (
+      <div className="rounded-xl border border-gray-200 p-8 text-sm text-gray-500 dark:border-gray-700">
+        Loading analytics…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-purple-500" />
+        <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+          <BarChart3 className="h-5 w-5 text-purple-500" />
           Analytics
         </h3>
-        <select className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white text-sm border-0 focus:ring-2 focus:ring-purple-500">
-          <option>Last 7 days</option>
-          <option>Last 30 days</option>
-          <option>Last 3 months</option>
-          <option>All time</option>
-        </select>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {data.error && <p className="text-sm text-red-400">{data.error}</p>}
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
           {
-            label: 'Total XP',
+            label: "Total XP",
             value: data.totalXP.toLocaleString(),
             trend: data.xpTrend,
             icon: Zap,
-            color: 'text-yellow-500',
-            bg: 'bg-yellow-50 dark:bg-yellow-900/20',
+            color: "text-yellow-500",
+            bg: "bg-yellow-50 dark:bg-yellow-900/20",
           },
           {
-            label: 'Study Hours',
+            label: "Study Hours",
             value: `${data.studyHours}h`,
             trend: data.studyTrend,
             icon: Clock,
-            color: 'text-blue-500',
-            bg: 'bg-blue-50 dark:bg-blue-900/20',
+            color: "text-blue-500",
+            bg: "bg-blue-50 dark:bg-blue-900/20",
           },
           {
-            label: 'Courses Done',
+            label: "Courses Done",
             value: data.coursesCompleted,
             trend: data.coursesTrend,
             icon: BookOpen,
-            color: 'text-green-500',
-            bg: 'bg-green-50 dark:bg-green-900/20',
+            color: "text-green-500",
+            bg: "bg-green-50 dark:bg-green-900/20",
           },
           {
-            label: 'Day Streak',
+            label: "Day Streak",
             value: `${data.streak} days`,
             trend: data.streakTrend,
             icon: Flame,
-            color: 'text-orange-500',
-            bg: 'bg-orange-50 dark:bg-orange-900/20',
+            color: "text-orange-500",
+            bg: "bg-orange-50 dark:bg-orange-900/20",
           },
         ].map((stat, i) => (
           <motion.div
@@ -114,66 +243,74 @@ export function AnalyticsDashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className={`p-4 rounded-xl ${stat.bg} border border-gray-200 dark:border-gray-700`}
+            className={`rounded-xl border border-gray-200 p-4 dark:border-gray-700 ${stat.bg}`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <stat.icon className={`w-5 h-5 ${stat.color}`} />
-              <span className={`flex items-center gap-0.5 text-xs font-medium ${
-                stat.trend > 0 ? 'text-green-500' : 'text-red-500'
-              }`}>
-                {stat.trend > 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
-                {Math.abs(stat.trend)}%
+            <div className="mb-2 flex items-center justify-between">
+              <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              <span
+                className={`flex items-center gap-0.5 text-xs font-medium ${
+                  stat.trend >= 0 ? "text-green-500" : "text-red-500"
+                }`}
+              >
+                {stat.trend >= 0 ? (
+                  <ArrowUp className="h-3 w-3" />
+                ) : (
+                  <ArrowDown className="h-3 w-3" />
+                )}
+                {Math.abs(Math.round(stat.trend))}%
               </span>
             </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-            <p className="text-sm text-gray-500 mt-1">{stat.label}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">
+              {stat.value}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">{stat.label}</p>
           </motion.div>
         ))}
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Weekly Activity Chart */}
-        <div className="p-5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <h4 className="font-semibold text-gray-900 dark:text-white mb-4">Weekly Activity</h4>
-          <div className="flex items-end justify-between h-40 gap-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+          <h4 className="mb-4 font-semibold text-gray-900 dark:text-white">
+            Weekly Activity
+          </h4>
+          <div className="flex h-40 items-end justify-between gap-2">
             {data.weeklyActivity.map((day, i) => (
-              <div key={day.day} className="flex-1 flex flex-col items-center gap-1">
+              <div
+                key={`${day.day}-${i}`}
+                className="flex flex-1 flex-col items-center gap-1"
+              >
                 <motion.div
                   initial={{ height: 0 }}
                   animate={{ height: `${(day.hours / maxHours) * 100}%` }}
                   transition={{ delay: i * 0.1, duration: 0.5 }}
-                  className="w-full bg-gradient-to-t from-purple-500 to-indigo-500 rounded-t-lg min-h-[4px]"
+                  className="min-h-[4px] w-full rounded-t-lg bg-gradient-to-t from-purple-500 to-indigo-500"
                 />
                 <span className="text-xs text-gray-500">{day.day}</span>
               </div>
             ))}
           </div>
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-            <span className="text-sm text-gray-500">
-              Total: {data.weeklyActivity.reduce((sum, d) => sum + d.hours, 0).toFixed(1)}h
-            </span>
-            <span className="text-sm text-purple-500 font-medium">
-              +{data.weeklyActivity.reduce((sum, d) => sum + d.xp, 0).toLocaleString()} XP
-            </span>
-          </div>
         </div>
 
-        {/* Skill Distribution */}
-        <div className="p-5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <h4 className="font-semibold text-gray-900 dark:text-white mb-4">Skill Distribution</h4>
+        <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+          <h4 className="mb-4 font-semibold text-gray-900 dark:text-white">
+            Course Progress
+          </h4>
           <div className="space-y-4">
             {data.skillDistribution.map((skill) => (
               <div key={skill.skill}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{skill.skill}</span>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">{skill.level}%</span>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {skill.skill}
+                  </span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {skill.level}%
+                  </span>
                 </div>
-                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${skill.level}%` }}
-                    transition={{ duration: 1, ease: 'easeOut' }}
+                    transition={{ duration: 1, ease: "easeOut" }}
                     className="h-full rounded-full"
                     style={{ backgroundColor: skill.color }}
                   />
@@ -184,102 +321,72 @@ export function AnalyticsDashboard() {
         </div>
       </div>
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Monthly Goal */}
-        <div className="p-5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Target className="w-4 h-4 text-purple-500" /> Monthly Goal
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+          <h4 className="mb-4 flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+            <Target className="h-4 w-4 text-purple-500" /> XP Goal
           </h4>
-          <div className="text-center">
-            <div className="relative w-32 h-32 mx-auto">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle
-                  cx="64"
-                  cy="64"
-                  r="56"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="8"
-                  className="text-gray-200 dark:text-gray-700"
-                />
-                <circle
-                  cx="64"
-                  cy="64"
-                  r="56"
-                  fill="none"
-                  stroke="url(#gradient)"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(data.monthlyGoal.current / data.monthlyGoal.target) * 352} 352`}
-                />
-                <defs>
-                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#A855F7" />
-                    <stop offset="100%" stopColor="#6366F1" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {Math.round((data.monthlyGoal.current / data.monthlyGoal.target) * 100)}%
-                </span>
-                <span className="text-xs text-gray-500">of goal</span>
-              </div>
-            </div>
-            <p className="mt-4 text-sm text-gray-500">
-              {data.monthlyGoal.current.toLocaleString()} / {data.monthlyGoal.target.toLocaleString()} XP
-            </p>
+          <p className="text-center text-sm text-gray-500">
+            {data.monthlyGoal.current.toLocaleString()} /{" "}
+            {data.monthlyGoal.target.toLocaleString()} XP
+          </p>
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+            <div
+              className="h-full rounded-full bg-purple-500"
+              style={{
+                width: `${Math.min(100, (data.monthlyGoal.current / data.monthlyGoal.target) * 100)}%`,
+              }}
+            />
           </div>
         </div>
 
-        {/* Recent Achievements */}
-        <div className="p-5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Award className="w-4 h-4 text-yellow-500" /> Recent Achievements
+        <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+          <h4 className="mb-4 flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+            <Award className="h-4 w-4 text-yellow-500" /> Recent Achievements
           </h4>
           <div className="space-y-3">
-            {data.recentAchievements.map((achievement, i) => (
-              <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                <span className="text-2xl">{achievement.icon}</span>
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white text-sm">{achievement.name}</p>
-                  <p className="text-xs text-gray-500">{achievement.date}</p>
+            {data.recentAchievements.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No achievements earned yet.
+              </p>
+            ) : (
+              data.recentAchievements.map((achievement, i) => (
+                <div key={i} className="flex items-center gap-3 rounded-lg p-2">
+                  <span className="text-2xl">{achievement.icon}</span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {achievement.name}
+                    </p>
+                    <p className="text-xs text-gray-500">{achievement.date}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
-        {/* Learning Streak Calendar */}
-        <div className="p-5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-orange-500" /> This Week
+        <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+          <h4 className="mb-4 flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+            <Calendar className="h-4 w-4 text-orange-500" /> This Week
           </h4>
           <div className="grid grid-cols-7 gap-1">
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-              <div key={i} className="text-center text-xs text-gray-500 pb-1">{day}</div>
+            {data.weeklyActivity.map((day, i) => (
+              <div
+                key={`${day.day}-cell-${i}`}
+                className={`flex aspect-square items-center justify-center rounded-lg text-sm ${
+                  day.hours > 0
+                    ? "bg-green-500 text-white"
+                    : "bg-gray-100 text-gray-400 dark:bg-gray-700"
+                }`}
+              >
+                {day.hours > 0 ? "✓" : ""}
+              </div>
             ))}
-            {Array.from({ length: 7 }, (_, i) => {
-              const isActive = i < 5; // Mon-Fri active
-              const isToday = i === new Date().getDay();
-              return (
-                <div
-                  key={i}
-                  className={`aspect-square rounded-lg flex items-center justify-center text-sm ${
-                    isActive
-                      ? isToday
-                        ? 'bg-purple-500 text-white ring-2 ring-purple-300'
-                        : 'bg-green-500 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-400'
-                  }`}
-                >
-                  {isActive ? '✓' : ''}
-                </div>
-              );
-            })}
           </div>
-          <p className="mt-3 text-sm text-gray-500 text-center">5/7 days active this week</p>
+          <p className="mt-3 text-center text-sm text-gray-500">
+            {data.weeklyActivity.filter((d) => d.hours > 0).length}/7 days
+            active this week
+          </p>
         </div>
       </div>
     </div>

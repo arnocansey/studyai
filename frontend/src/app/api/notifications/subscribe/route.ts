@@ -1,45 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '');
   const body = await req.json();
-
-  try {
-    const res = await fetch(`${BACKEND_URL}/notifications/subscribe`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify(body),
-    });
-
-    const data = await res.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to subscribe' }, { status: 500 });
-  }
+  return proxyToBackend({
+    req,
+    path: "/notifications/subscribe",
+    method: "POST",
+    body,
+    requireAuth: true,
+  });
 }
 
 export async function DELETE(req: NextRequest) {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '');
   const body = await req.json();
-
-  try {
-    const res = await fetch(`${BACKEND_URL}/notifications/unsubscribe`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify(body),
-    });
-
-    const data = await res.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to unsubscribe' }, { status: 500 });
-  }
+  return proxyToBackend({
+    req,
+    path: "/notifications/unsubscribe",
+    method: "DELETE",
+    body,
+    requireAuth: true,
+  });
 }

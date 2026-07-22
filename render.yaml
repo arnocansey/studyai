@@ -10,11 +10,11 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        value: "postgresql://neondb_owner:npg_2anZNrvm7WRs@ep-small-smoke-attwr3r0-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
+        sync: false
       - key: DIRECT_URL
-        value: "postgresql://neondb_owner:npg_2anZNrvm7WRs@ep-small-smoke-attwr3r0.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
+        sync: false
       - key: JWT_SECRET
-        value: "a7189c6a7363b674e39e8704460ec6baf4945cfe909025e0bf9f798cef68af336b28e42819d985356bff25f23ed87b6d8df688b02d59df49a513b9fa2516f9fb"
+        sync: false
       - key: JWT_EXPIRATION
         value: 7d
       - key: CORS_ORIGINS
@@ -22,7 +22,13 @@ services:
       - key: PORT
         value: 4000
       - key: GEMINI_API_KEY
-        value: ""
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_EMAIL
+        sync: false
       - key: THROTTLE_TTL
         value: 60
       - key: THROTTLE_LIMIT

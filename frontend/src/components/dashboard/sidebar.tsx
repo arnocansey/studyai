@@ -1,89 +1,156 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { BookOpen, Code, Terminal, Trophy, Cpu, LogOut, Users, ClipboardList, GraduationCap } from 'lucide-react';
-import { useAuth } from '@/components/auth-provider';
-import { useRouter } from 'next/navigation';
+import React from "react";
+import Link from "next/link";
+import {
+  BookOpen,
+  Code,
+  Terminal,
+  Trophy,
+  Cpu,
+  LogOut,
+  Users,
+  ClipboardList,
+  GraduationCap,
+  Sparkles,
+  MessageSquare,
+} from "lucide-react";
+import { useAuth } from "@/components/auth-provider";
+import { usePathname, useRouter } from "next/navigation";
 
 interface SidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   username: string;
   userRole: string;
-  role?: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
+  role?: "STUDENT" | "INSTRUCTOR" | "ADMIN";
 }
 
-export function Sidebar({ activeTab, onTabChange, username, userRole, role = 'STUDENT' }: SidebarProps) {
+export function Sidebar({
+  activeTab,
+  onTabChange,
+  username,
+  userRole,
+  role = "STUDENT",
+}: SidebarProps) {
   const { logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const studentNav = [
-    { id: 'dashboard', label: 'Dashboard', icon: BookOpen },
-    { id: 'courses', label: 'Courses', icon: Code },
-    { id: 'labs', label: 'Simulated Labs', icon: Terminal },
-    { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+    { id: "dashboard", label: "Dashboard", icon: BookOpen, href: "/" },
+    { id: "courses", label: "Courses", icon: Code },
+    { id: "labs", label: "Simulated Labs", icon: Terminal },
+    {
+      id: "study-plan",
+      label: "Study Plan",
+      icon: Sparkles,
+      href: "/dashboard/study-plan",
+    },
+    {
+      id: "gamification",
+      label: "Gamification",
+      icon: Trophy,
+      href: "/dashboard/gamification",
+    },
+    { id: "social", label: "Social", icon: Users, href: "/dashboard/social" },
+    { id: "chat", label: "Chat", icon: MessageSquare, href: "/dashboard/chat" },
   ];
 
   const instructorNav = [
-    { id: 'dashboard', label: 'Dashboard', icon: BookOpen },
-    { id: 'manage-courses', label: 'Manage Courses', icon: GraduationCap },
-    { id: 'submissions', label: 'Submissions', icon: ClipboardList },
-    { id: 'students', label: 'Students', icon: Users },
+    { id: "dashboard", label: "Dashboard", icon: BookOpen, href: "/" },
+    {
+      id: "manage-courses",
+      label: "Manage Courses",
+      icon: GraduationCap,
+      href: "/dashboard/manage-courses",
+    },
+    {
+      id: "submissions",
+      label: "Submissions",
+      icon: ClipboardList,
+      href: "/dashboard/submissions",
+    },
+    {
+      id: "students",
+      label: "Students",
+      icon: Users,
+      href: "/dashboard/students",
+    },
   ];
 
   const adminNav = [
-    { id: 'dashboard', label: 'Dashboard', icon: BookOpen },
-    { id: 'manage-courses', label: 'Manage Courses', icon: GraduationCap },
-    { id: 'submissions', label: 'Submissions', icon: ClipboardList },
-    { id: 'students', label: 'Students', icon: Users },
-    { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+    ...instructorNav,
+    {
+      id: "gamification",
+      label: "Leaderboard",
+      icon: Trophy,
+      href: "/dashboard/gamification",
+    },
   ];
 
-  const navItems = role === 'ADMIN' ? adminNav : role === 'INSTRUCTOR' ? instructorNav : studentNav;
+  const navItems =
+    role === "ADMIN"
+      ? adminNav
+      : role === "INSTRUCTOR"
+        ? instructorNav
+        : studentNav;
 
   const handleLogout = () => {
     logout();
-    router.push('/login');
+    router.push("/login");
+  };
+
+  const handleNav = (item: (typeof studentNav)[number]) => {
+    if (item.href) {
+      router.push(item.href);
+      return;
+    }
+    onTabChange(item.id);
   };
 
   return (
-    <aside className="w-64 border-r border-zinc-800/80 bg-zinc-950/60 backdrop-blur-md flex flex-col justify-between hidden md:flex">
+    <aside className="hidden w-64 flex-col justify-between border-r border-zinc-800/80 bg-zinc-950/60 backdrop-blur-md md:flex">
       <div>
-        {/* Logo */}
-        <div className="h-16 px-6 border-b border-zinc-800/80 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyber-purple to-cyber-blue flex items-center justify-center shadow-lg">
-            <Cpu className="w-5 h-5 text-white" />
+        <div className="flex h-16 items-center gap-3 border-b border-zinc-800/80 px-6">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-cyber-purple to-cyber-blue shadow-lg">
+            <Cpu className="h-5 w-5 text-white" />
           </div>
           <div>
-            <span className="font-bold text-lg tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">StudyAI</span>
-            <span className="w-2 h-2 rounded-full bg-cyber-green inline-block ml-1 animate-pulse" />
+            <span className="bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-lg font-bold tracking-wider text-transparent">
+              StudyAI
+            </span>
+            <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-cyber-green" />
           </div>
         </div>
 
-        {/* Nav Items */}
-        <nav className="p-4 space-y-1">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onTabChange(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                activeTab === item.id
-                  ? 'bg-zinc-800/40 text-white font-medium shadow-inner border border-zinc-700/30'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30'
-              }`}
-            >
-              <item.icon className="w-5 h-5" />
-              <span>{item.label}</span>
-            </button>
-          ))}
+        <nav className="space-y-1 p-4">
+          {navItems.map((item) => {
+            const active = item.href
+              ? pathname === item.href
+              : activeTab === item.id && pathname === "/";
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleNav(item)}
+                className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 ${
+                  active
+                    ? "border border-zinc-700/30 bg-zinc-800/40 font-medium text-white shadow-inner"
+                    : "text-zinc-400 hover:bg-zinc-900/30 hover:text-zinc-200"
+                }`}
+              >
+                <item.icon className="h-5 w-5" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
       </div>
 
-      {/* User Card + Logout */}
-      <div className="p-4 border-t border-zinc-800/80 space-y-3">
-        <div className="flex items-center gap-3 p-2 bg-zinc-900/30 rounded-xl border border-zinc-800/50">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyber-purple via-cyber-blue to-cyber-green p-[2px]">
-            <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center font-bold text-sm">
+      <div className="space-y-3 border-t border-zinc-800/80 p-4">
+        <div className="flex items-center gap-3 rounded-xl border border-zinc-800/50 bg-zinc-900/30 p-2">
+          <div className="rounded-full bg-gradient-to-br from-cyber-purple via-cyber-blue to-cyber-green p-[2px]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-sm font-bold">
               {username.charAt(0).toUpperCase()}
             </div>
           </div>
@@ -94,11 +161,14 @@ export function Sidebar({ activeTab, onTabChange, username, userRole, role = 'ST
         </div>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-zinc-400 hover:text-red-400 hover:bg-zinc-900/30 transition-all duration-200 cursor-pointer"
+          className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-4 py-2.5 text-zinc-400 transition-all duration-200 hover:bg-zinc-900/30 hover:text-red-400"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="h-4 w-4" />
           <span className="text-sm font-medium">Log Out</span>
         </button>
+        <Link href="/dashboard/study-plan" className="sr-only">
+          Study plan
+        </Link>
       </div>
     </aside>
   );

@@ -1,16 +1,18 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # Backend API
   backend:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: backend/Dockerfile.dev
     ports:
-      - "3001:3001"
+      - "4000:4000"
     environment:
       - NODE_ENV=production
+      - PORT=4000
       - DATABASE_URL=postgresql://postgres:password@db:5432/studyai
+      - DIRECT_URL=postgresql://postgres:password@db:5432/studyai
       - JWT_SECRET=${JWT_SECRET:-your-secret-key}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - CORS_ORIGINS=http://localhost:3000
@@ -25,11 +27,11 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
+      dockerfile: frontend/Dockerfile.dev
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:3001
+      - NEXT_PUBLIC_API_URL=http://backend:4000/api/v1
     depends_on:
       - backend
     restart: unless-stopped

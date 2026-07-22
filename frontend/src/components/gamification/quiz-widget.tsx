@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { CheckCircle, XCircle, ArrowRight, RotateCcw } from 'lucide-react';
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { CheckCircle, XCircle, ArrowRight, RotateCcw } from "lucide-react";
+import { bffFetch } from "@/lib/api";
 
 interface Question {
   id: string;
@@ -28,15 +29,16 @@ export function QuizWidget({ lessonId }: { lessonId: string }) {
 
   const fetchQuiz = async () => {
     try {
-      const res = await fetch(`/api/quiz/lesson/${lessonId}`);
-      const data = await res.json();
-      setQuestions(data.questions);
+      const data = await bffFetch<{ questions: Question[] }>(
+        `/api/quiz/lesson/${lessonId}`,
+      );
+      setQuestions(data.questions || []);
       setCurrentIndex(0);
       setScore(0);
       setTotalXP(0);
       setCompleted(false);
     } catch (error) {
-      console.error('Failed to fetch quiz:', error);
+      console.error("Failed to fetch quiz:", error);
     }
   };
 
@@ -45,16 +47,14 @@ export function QuizWidget({ lessonId }: { lessonId: string }) {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/quiz/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const data = await bffFetch<QuizResult>("/api/quiz/verify", {
+        method: "POST",
         body: JSON.stringify({
           questionId: questions[currentIndex].id,
           answer: selected,
         }),
       });
 
-      const data: QuizResult = await res.json();
       setResult(data);
 
       if (data.isCorrect) {
@@ -62,7 +62,7 @@ export function QuizWidget({ lessonId }: { lessonId: string }) {
         setTotalXP((xp) => xp + data.xpAwarded);
       }
     } catch (error) {
-      console.error('Failed to verify answer:', error);
+      console.error("Failed to verify answer:", error);
     } finally {
       setLoading(false);
     }
@@ -102,13 +102,19 @@ export function QuizWidget({ lessonId }: { lessonId: string }) {
         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
           <CheckCircle className="w-8 h-8 text-white" />
         </div>
-        <h3 className="text-xl font-bold text-gray-900 dark:text-white">Quiz Complete!</h3>
+        <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+          Quiz Complete!
+        </h3>
         <div className="mt-4 space-y-2">
           <p className="text-lg">
-            Score: <span className="font-bold text-purple-500">{score}/{questions.length}</span>
+            Score:{" "}
+            <span className="font-bold text-purple-500">
+              {score}/{questions.length}
+            </span>
           </p>
           <p className="text-lg">
-            XP Earned: <span className="font-bold text-yellow-500">+{totalXP}</span>
+            XP Earned:{" "}
+            <span className="font-bold text-yellow-500">+{totalXP}</span>
           </p>
         </div>
         <button
@@ -137,7 +143,9 @@ export function QuizWidget({ lessonId }: { lessonId: string }) {
         <motion.div
           className="h-full bg-gradient-to-r from-purple-500 to-indigo-600"
           initial={{ width: 0 }}
-          animate={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
+          animate={{
+            width: `${((currentIndex + 1) / questions.length) * 100}%`,
+          }}
         />
       </div>
 
@@ -148,7 +156,9 @@ export function QuizWidget({ lessonId }: { lessonId: string }) {
         animate={{ opacity: 1, x: 0 }}
         className="p-6 bg-gray-50 dark:bg-gray-800 rounded-2xl"
       >
-        <p className="text-lg font-medium text-gray-900 dark:text-white">{question.question}</p>
+        <p className="text-lg font-medium text-gray-900 dark:text-white">
+          {question.question}
+        </p>
       </motion.div>
 
       {/* Options */}
@@ -160,25 +170,27 @@ export function QuizWidget({ lessonId }: { lessonId: string }) {
             disabled={!!result}
             className={`w-full p-4 text-left rounded-xl border-2 transition-all ${
               selected === option
-                ? 'border-purple-500 bg-purple-500/10'
-                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                ? "border-purple-500 bg-purple-500/10"
+                : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
             } ${
               result && selected === option && result.isCorrect
-                ? '!border-green-500 !bg-green-500/10'
+                ? "!border-green-500 !bg-green-500/10"
                 : result && selected === option && !result.isCorrect
-                  ? '!border-red-500 !bg-red-500/10'
-                  : ''
+                  ? "!border-red-500 !bg-red-500/10"
+                  : ""
             }`}
           >
             <div className="flex items-center gap-3">
               <div
                 className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
                   selected === option
-                    ? 'border-purple-500 bg-purple-500'
-                    : 'border-gray-300 dark:border-gray-600'
+                    ? "border-purple-500 bg-purple-500"
+                    : "border-gray-300 dark:border-gray-600"
                 }`}
               >
-                {selected === option && <div className="w-2 h-2 bg-white rounded-full" />}
+                {selected === option && (
+                  <div className="w-2 h-2 bg-white rounded-full" />
+                )}
               </div>
               <span className="text-gray-900 dark:text-white">{option}</span>
             </div>
@@ -193,8 +205,8 @@ export function QuizWidget({ lessonId }: { lessonId: string }) {
           animate={{ opacity: 1, y: 0 }}
           className={`p-4 rounded-xl ${
             result.isCorrect
-              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-              : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+              ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+              : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
           }`}
         >
           <div className="flex items-center gap-2">
@@ -203,12 +215,16 @@ export function QuizWidget({ lessonId }: { lessonId: string }) {
             ) : (
               <XCircle className="w-5 h-5 text-red-500" />
             )}
-            <span className={`font-medium ${result.isCorrect ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+            <span
+              className={`font-medium ${result.isCorrect ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}
+            >
               {result.message}
             </span>
           </div>
           {result.xpAwarded > 0 && (
-            <p className="mt-2 text-sm text-yellow-600">+{result.xpAwarded} XP</p>
+            <p className="mt-2 text-sm text-yellow-600">
+              +{result.xpAwarded} XP
+            </p>
           )}
         </motion.div>
       )}
@@ -220,7 +236,8 @@ export function QuizWidget({ lessonId }: { lessonId: string }) {
             onClick={nextQuestion}
             className="px-6 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl hover:from-purple-600 hover:to-indigo-700 transition-all inline-flex items-center gap-2"
           >
-            {currentIndex < questions.length - 1 ? 'Next' : 'Finish'} <ArrowRight className="w-4 h-4" />
+            {currentIndex < questions.length - 1 ? "Next" : "Finish"}{" "}
+            <ArrowRight className="w-4 h-4" />
           </button>
         ) : (
           <button

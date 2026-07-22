@@ -1,32 +1,33 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Search, Bell, BellOff, Users, Reply, X } from 'lucide-react';
-import { useChatSocket, ChatMessage, ChatRoom } from '@/hooks/use-chat-socket';
-import { ChatSidebar } from './chat-sidebar';
-import { MessageList } from './message-list';
-import { ChatInput } from './chat-input';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Hash, Search, Bell, BellOff, Users, Reply, X } from "lucide-react";
+import { useChatSocket, ChatMessage, ChatRoom } from "@/hooks/use-chat-socket";
+import { ChatSidebar } from "./chat-sidebar";
+import { MessageList } from "./message-list";
+import { ChatInput } from "./chat-input";
+import { useAuthStore } from "@/lib/auth-store";
 
 const DEFAULT_ROOMS: ChatRoom[] = [
-  { id: 'general', name: 'General', type: 'group', members: [] },
-  { id: 'help', name: 'Help & Questions', type: 'group', members: [] },
-  { id: 'study', name: 'Study Group', type: 'study-group', members: [] },
+  { id: "general", name: "General", type: "group", members: [] },
+  { id: "help", name: "Help & Questions", type: "group", members: [] },
+  { id: "study", name: "Study Group", type: "study-group", members: [] },
 ];
 
-const CURRENT_USER = {
-  id: 'current-user',
-  name: 'You',
-};
-
 export function LiveChat() {
+  const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
+  const currentUserId = user?.id || "";
+  const currentUserName = user?.name || user?.email || "You";
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [rooms, setRooms] = useState<ChatRoom[]>(DEFAULT_ROOMS);
-  const [currentRoom, setCurrentRoom] = useState('general');
-  const [input, setInput] = useState('');
+  const [currentRoom, setCurrentRoom] = useState("general");
+  const [input, setInput] = useState("");
   const [showEmoji, setShowEmoji] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,8 +47,9 @@ export function LiveChat() {
     onMessageUpdated,
     onRoomCreated,
   } = useChatSocket({
-    userId: CURRENT_USER.id,
-    userName: CURRENT_USER.name,
+    userId: currentUserId,
+    userName: currentUserName,
+    token,
   });
 
   useEffect(() => {
@@ -76,7 +78,7 @@ export function LiveChat() {
   useEffect(() => {
     const unsub = onMessageUpdated((updated) => {
       setMessages((prev) =>
-        prev.map((msg) => (msg.id === updated.id ? updated : msg))
+        prev.map((msg) => (msg.id === updated.id ? updated : msg)),
       );
     });
     return unsub;
@@ -93,13 +95,13 @@ export function LiveChat() {
   }, [onRoomCreated]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const sendMessage = useCallback(() => {
     if (!input.trim()) return;
     socketSend(input, currentRoom, replyTo?.id);
-    setInput('');
+    setInput("");
     setReplyTo(null);
     stopTyping(currentRoom);
   }, [input, currentRoom, replyTo, socketSend, stopTyping]);
@@ -116,7 +118,7 @@ export function LiveChat() {
         stopTyping(currentRoom);
       }, 2000);
     },
-    [currentRoom, startTyping, stopTyping]
+    [currentRoom, startTyping, stopTyping],
   );
 
   const handleRoomChange = useCallback(
@@ -125,7 +127,7 @@ export function LiveChat() {
       setMessages([]);
       getHistory(roomId, 50).then(setMessages);
     },
-    [getHistory]
+    [getHistory],
   );
 
   const addReaction = useCallback(
@@ -133,23 +135,36 @@ export function LiveChat() {
       sendReaction(messageId, currentRoom, emoji);
       setShowEmoji(null);
     },
-    [currentRoom, sendReaction]
+    [currentRoom, sendReaction],
   );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === "Enter" && !e.shiftKey) {
         sendMessage();
       }
     },
-    [sendMessage]
+    [sendMessage],
   );
 
   const formatTime = (date: Date) => {
-    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(date).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
-  const currentRoomName = rooms.find((r) => r.id === currentRoom)?.name || '';
+  const currentRoomName = rooms.find((r) => r.id === currentRoom)?.name || "";
+
+  if (!token || !currentUserId) {
+    return (
+      <div className="flex h-[calc(100vh-200px)] items-center justify-center bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+        <p className="text-gray-500 dark:text-gray-400">
+          Sign in to use live chat.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-200px)] bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -185,11 +200,17 @@ export function LiveChat() {
               onClick={() => setIsMuted(!isMuted)}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
             >
-              {isMuted ? <BellOff className="w-4 h-4 text-gray-500" /> : <Bell className="w-4 h-4 text-gray-500" />}
+              {isMuted ? (
+                <BellOff className="w-4 h-4 text-gray-500" />
+              ) : (
+                <Bell className="w-4 h-4 text-gray-500" />
+              )}
             </button>
             <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg">
               <Users className="w-4 h-4 text-gray-500" />
-              <span className="text-sm text-gray-600 dark:text-gray-400">{onlineUsers.length + 1}</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {onlineUsers.length + 1}
+              </span>
             </div>
           </div>
         </div>
@@ -212,9 +233,10 @@ export function LiveChat() {
           messages={messages.filter(
             (m) =>
               m.room === currentRoom &&
-              (!searchQuery || m.content.toLowerCase().includes(searchQuery.toLowerCase()))
+              (!searchQuery ||
+                m.content.toLowerCase().includes(searchQuery.toLowerCase())),
           )}
-          currentUserId={CURRENT_USER.id}
+          currentUserId={currentUserId}
           currentRoom={currentRoom}
           showEmoji={showEmoji}
           onToggleEmoji={(id) => setShowEmoji(showEmoji === id ? null : id)}
@@ -229,10 +251,16 @@ export function LiveChat() {
             <div className="flex items-center gap-2">
               <Reply className="w-4 h-4 text-purple-500" />
               <span className="text-sm text-gray-600 dark:text-gray-400">
-                Replying to <span className="font-medium text-purple-600">{replyTo.userName}</span>
+                Replying to{" "}
+                <span className="font-medium text-purple-600">
+                  {replyTo.userName}
+                </span>
               </span>
             </div>
-            <button onClick={() => setReplyTo(null)} className="p-1 hover:bg-purple-100 dark:hover:bg-purple-800 rounded">
+            <button
+              onClick={() => setReplyTo(null)}
+              className="p-1 hover:bg-purple-100 dark:hover:bg-purple-800 rounded"
+            >
               <X className="w-4 h-4 text-gray-500" />
             </button>
           </div>
@@ -244,7 +272,9 @@ export function LiveChat() {
           onSend={sendMessage}
           onKeyDown={handleKeyDown}
           isConnected={isConnected}
-          placeholder={isConnected ? `Message #${currentRoomName}` : 'Connecting...'}
+          placeholder={
+            isConnected ? `Message #${currentRoomName}` : "Connecting..."
+          }
           inputRef={inputRef}
         />
       </div>

@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Star, Zap, Target, Flame, Shield } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Trophy, Star, Zap, Target, Flame, Shield } from "lucide-react";
+import { bffFetch } from "@/lib/api";
 
 interface Achievement {
   id: string;
@@ -18,17 +19,17 @@ interface Achievement {
 }
 
 const tierColors = {
-  bronze: 'from-orange-400 to-orange-600',
-  silver: 'from-gray-300 to-gray-500',
-  gold: 'from-yellow-400 to-yellow-600',
-  platinum: 'from-cyan-400 to-blue-600',
+  bronze: "from-orange-400 to-orange-600",
+  silver: "from-gray-300 to-gray-500",
+  gold: "from-yellow-400 to-yellow-600",
+  platinum: "from-cyan-400 to-blue-600",
 };
 
 const tierIcons = {
-  bronze: '🥉',
-  silver: '🥈',
-  gold: '🥇',
-  platinum: '💎',
+  bronze: "🥉",
+  silver: "🥈",
+  gold: "🥇",
+  platinum: "💎",
 };
 
 export function AchievementShowcase() {
@@ -36,9 +37,8 @@ export function AchievementShowcase() {
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/gamification/achievements')
-      .then((r) => r.json())
-      .then(setAchievements)
+    bffFetch<Achievement[]>("/api/gamification/achievements")
+      .then((data) => setAchievements(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, []);
 
@@ -61,14 +61,14 @@ export function AchievementShowcase() {
 
       {/* Tier Filter */}
       <div className="flex gap-2">
-        {(['bronze', 'silver', 'gold', 'platinum'] as const).map((tier) => (
+        {(["bronze", "silver", "gold", "platinum"] as const).map((tier) => (
           <button
             key={tier}
             onClick={() => setSelectedTier(selectedTier === tier ? null : tier)}
             className={`px-3 py-1 rounded-full text-sm font-medium transition-all ${
               selectedTier === tier
-                ? 'bg-purple-500 text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                ? "bg-purple-500 text-white"
+                : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200"
             }`}
           >
             {tierIcons[tier]} {tier.charAt(0).toUpperCase() + tier.slice(1)}
@@ -88,8 +88,8 @@ export function AchievementShowcase() {
               transition={{ delay: i * 0.05 }}
               className={`relative p-4 rounded-xl border-2 transition-all ${
                 achievement.earned
-                  ? 'border-yellow-500/50 bg-gradient-to-br from-yellow-500/10 to-orange-500/10'
-                  : 'border-gray-200 dark:border-gray-700 opacity-50 grayscale'
+                  ? "border-yellow-500/50 bg-gradient-to-br from-yellow-500/10 to-orange-500/10"
+                  : "border-gray-200 dark:border-gray-700 opacity-50 grayscale"
               }`}
             >
               {achievement.earned && (
@@ -97,11 +97,17 @@ export function AchievementShowcase() {
                   <span className="text-white text-xs">✓</span>
                 </div>
               )}
-              
+
               <div className="text-3xl mb-2">{achievement.icon}</div>
-              <p className="font-medium text-sm text-gray-900 dark:text-white">{achievement.title}</p>
-              <p className="text-xs text-gray-500 mt-1">{achievement.description}</p>
-              <p className="text-xs text-purple-500 mt-2">+{achievement.xpReward} XP</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white">
+                {achievement.title}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {achievement.description}
+              </p>
+              <p className="text-xs text-purple-500 mt-2">
+                +{achievement.xpReward} XP
+              </p>
             </motion.div>
           ))}
         </AnimatePresence>
@@ -110,7 +116,11 @@ export function AchievementShowcase() {
   );
 }
 
-export function AchievementToast({ achievement }: { achievement: Achievement }) {
+export function AchievementToast({
+  achievement,
+}: {
+  achievement: Achievement;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 50, scale: 0.8 }}

@@ -3,8 +3,12 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://studyai-fawn.vercel.app",
+  ),
   title: "StudyAI | Interactive Tech Education Platform",
-  description: "Master programming, networking, cybersecurity, cloud computing, and Linux through interactive sandboxes, visual simulators, and an AI tutor companion.",
+  description:
+    "Master programming, networking, cybersecurity, cloud computing, and Linux through interactive sandboxes, visual simulators, and an AI tutor companion.",
   icons: {
     icon: "/favicon.svg",
     apple: "/icon.svg",
@@ -12,7 +16,8 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "StudyAI | Interactive Tech Education Platform",
-    description: "Master programming, networking, cybersecurity, cloud computing, and Linux through interactive sandboxes, visual simulators, and an AI tutor companion.",
+    description:
+      "Master programming, networking, cybersecurity, cloud computing, and Linux through interactive sandboxes, visual simulators, and an AI tutor companion.",
     type: "website",
     siteName: "StudyAI",
     images: ["/logo.svg"],
@@ -20,7 +25,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "StudyAI | Interactive Tech Education Platform",
-    description: "Master programming, networking, cybersecurity, cloud computing, and Linux through interactive sandboxes, visual simulators, and an AI tutor companion.",
+    description:
+      "Master programming, networking, cybersecurity, cloud computing, and Linux through interactive sandboxes, visual simulators, and an AI tutor companion.",
     images: ["/logo.svg"],
   },
 };
@@ -40,10 +46,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className="h-full antialiased dark"
-    >
+    <html lang="en" className="h-full antialiased dark">
       <body className="min-h-full flex flex-col bg-[#030303] text-[#ededed] font-sans">
         <Providers>{children}</Providers>
       </body>

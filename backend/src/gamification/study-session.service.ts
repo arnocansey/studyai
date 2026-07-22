@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { XpService } from './xp.service';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+} from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { XpService } from "./xp.service";
 
 @Injectable()
 export class StudySessionService {
@@ -22,14 +28,18 @@ export class StudySessionService {
       where: { id: sessionId },
     });
 
-    if (!session) throw new NotFoundException('Session not found');
+    if (!session) throw new NotFoundException("Session not found");
 
     if (session.userId !== userId) {
-      throw new ForbiddenException('You can only end your own study sessions');
+      throw new ForbiddenException("You can only end your own study sessions");
+    }
+
+    if (session.endedAt) {
+      throw new BadRequestException("Study session already ended");
     }
 
     const duration = Math.floor(
-      (Date.now() - session.startedAt.getTime()) / 1000
+      (Date.now() - session.startedAt.getTime()) / 1000,
     );
 
     const xpEarned = Math.min(Math.floor(duration / 60) * 10, 100);
@@ -44,7 +54,7 @@ export class StudySessionService {
     });
 
     if (xpEarned > 0) {
-      await this.xpService.addXP(userId, xpEarned, 'Study session');
+      await this.xpService.addXP(userId, xpEarned, "Study session");
     }
 
     return updated;

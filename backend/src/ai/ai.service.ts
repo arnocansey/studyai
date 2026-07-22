@@ -1,10 +1,35 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { PrismaService } from "../prisma/prisma.service";
 
 export interface TutorMessage {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
+}
+
+export interface StudyPlanInput {
+  goal: string;
+  currentLevel: "beginner" | "intermediate" | "advanced";
+  weeklyHours: number;
+  targetDate?: string;
+  focusAreas: string[];
+}
+
+export interface StudyPlanWeek {
+  week: number;
+  theme: string;
+  objectives: string[];
+  activities: string[];
+  deliverable: string;
+}
+
+export interface StudyPlan {
+  goal: string;
+  level: string;
+  weeklyHours: number;
+  durationWeeks: number;
+  milestones: string[];
+  weeks: StudyPlanWeek[];
 }
 
 @Injectable()
@@ -19,10 +44,12 @@ export class AiService {
   // ==================== EXPLAIN CONCEPT (Direct) ====================
 
   async explainConcept(prompt: string, context?: string): Promise<string> {
-    const apiKey = this.configService.get<string>('GEMINI_API_KEY');
+    const apiKey = this.configService.get<string>("GEMINI_API_KEY");
 
     if (!apiKey) {
-      this.logger.warn('GEMINI_API_KEY is not defined. Falling back to local AI Tutor model.');
+      this.logger.warn(
+        "GEMINI_API_KEY is not defined. Falling back to local AI Tutor model.",
+      );
       return this.getLocalMockExplanation(prompt, context);
     }
 
@@ -32,19 +59,19 @@ Explain technical concepts, programming issues, networking, or cybersecurity vul
 Keep your explanations under 150 words. Format with clean markdown.`;
 
       const response = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey,
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
           },
           body: JSON.stringify({
             contents: [
               {
                 parts: [
                   {
-                    text: `${systemInstruction}\n\nUser Context: ${context || 'None'}\n\nUser Question/Code: ${prompt}`,
+                    text: `${systemInstruction}\n\nUser Context: ${context || "None"}\n\nUser Question/Code: ${prompt}`,
                   },
                 ],
               },
@@ -61,12 +88,14 @@ Keep your explanations under 150 words. Format with clean markdown.`;
       const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!textResponse) {
-        throw new Error('Invalid response structure from Gemini API');
+        throw new Error("Invalid response structure from Gemini API");
       }
 
       return textResponse;
     } catch (error) {
-      this.logger.error(`Error communicating with Gemini API: ${error.message}`);
+      this.logger.error(
+        `Error communicating with Gemini API: ${error.message}`,
+      );
       return this.getLocalMockExplanation(prompt, context);
     }
   }
@@ -78,7 +107,7 @@ Keep your explanations under 150 words. Format with clean markdown.`;
     topic?: string,
     userId?: string,
   ): Promise<{ response: string; followUp: string; hint: string }> {
-    const apiKey = this.configService.get<string>('GEMINI_API_KEY');
+    const apiKey = this.configService.get<string>("GEMINI_API_KEY");
 
     if (!apiKey) {
       return this.getLocalSocraticResponse(messages);
@@ -105,20 +134,20 @@ Keep your explanations under 150 words. Format with clean markdown.`;
 - If the student asks directly for the answer, redirect them: "Let's figure this out together. What do you think the first step might be?"
 - Track conversation context and build on previous questions
 
-Student${topic ? ` learning about ${topic}` : ''}:`;
+Student${topic ? ` learning about ${topic}` : ""}:`;
 
       const conversationHistory = messages.map((m) => ({
-        role: m.role === 'user' ? 'user' : 'model',
+        role: m.role === "user" ? "user" : "model",
         parts: [{ text: m.content }],
       }));
 
       const response = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey,
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
           },
           body: JSON.stringify({
             system_instruction: { parts: [{ text: systemInstruction }] },
@@ -135,7 +164,7 @@ Student${topic ? ` learning about ${topic}` : ''}:`;
       const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!textResponse) {
-        throw new Error('Invalid response structure');
+        throw new Error("Invalid response structure");
       }
 
       // Parse the structured response
@@ -158,28 +187,31 @@ Student${topic ? ` learning about ${topic}` : ''}:`;
     followUp: string;
     hint: string;
   } {
-    const lines = text.split('\n').filter((l) => l.trim());
+    const lines = text.split("\n").filter((l) => l.trim());
 
-    let response = '';
-    let followUp = '';
-    let hint = '';
+    let response = "";
+    let followUp = "";
+    let hint = "";
 
     for (const line of lines) {
-      if (line.toLowerCase().includes('follow-up:') || line.toLowerCase().includes('check:')) {
-        followUp = line.replace(/^[-*]\s*(follow-up|check):\s*/i, '').trim();
-      } else if (line.toLowerCase().includes('hint:')) {
-        hint = line.replace(/^[-*]\s*hint:\s*/i, '').trim();
+      if (
+        line.toLowerCase().includes("follow-up:") ||
+        line.toLowerCase().includes("check:")
+      ) {
+        followUp = line.replace(/^[-*]\s*(follow-up|check):\s*/i, "").trim();
+      } else if (line.toLowerCase().includes("hint:")) {
+        hint = line.replace(/^[-*]\s*hint:\s*/i, "").trim();
       } else if (!response) {
         response = line;
       } else {
-        response += ' ' + line;
+        response += " " + line;
       }
     }
 
     return {
       response: response || text.slice(0, 200),
-      followUp: followUp || 'Can you explain your reasoning?',
-      hint: hint || '',
+      followUp: followUp || "Can you explain your reasoning?",
+      hint: hint || "",
     };
   }
 
@@ -189,30 +221,37 @@ Student${topic ? ` learning about ${topic}` : ''}:`;
       await this.prisma.auditLog.create({
         data: {
           userId,
-          action: 'AI_TUTOR_CHAT',
+          action: "AI_TUTOR_CHAT",
           details: {},
         },
       });
     } catch (error) {
-      this.logger.warn('Failed to track tutor interaction');
+      this.logger.warn("Failed to track tutor interaction");
     }
   }
 
   // ==================== CODE REVIEW ====================
 
-  async reviewCode(code: string, language: string): Promise<{
+  async reviewCode(
+    code: string,
+    language: string,
+  ): Promise<{
     rating: number;
     feedback: string;
     improvements: string[];
     securityIssues: string[];
   }> {
-    const apiKey = this.configService.get<string>('GEMINI_API_KEY');
+    const apiKey = this.configService.get<string>("GEMINI_API_KEY");
 
     if (!apiKey) {
       return {
         rating: 7,
-        feedback: 'Code looks functional. Connect Gemini API for detailed review.',
-        improvements: ['Consider adding error handling', 'Add comments for clarity'],
+        feedback:
+          "Code looks functional. Connect Gemini API for detailed review.",
+        improvements: [
+          "Consider adding error handling",
+          "Add comments for clarity",
+        ],
         securityIssues: [],
       };
     }
@@ -233,18 +272,22 @@ Respond in JSON format:
 }`;
 
       const response = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey,
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
           },
           body: JSON.stringify({
             system_instruction: { parts: [{ text: systemInstruction }] },
             contents: [
               {
-                parts: [{ text: `Language: ${language}\n\nCode:\n\`\`\`${language}\n${code}\n\`\`\`` }],
+                parts: [
+                  {
+                    text: `Language: ${language}\n\nCode:\n\`\`\`${language}\n${code}\n\`\`\``,
+                  },
+                ],
               },
             ],
           }),
@@ -261,7 +304,7 @@ Respond in JSON format:
 
       return {
         rating: 7,
-        feedback: textResponse || 'Review complete.',
+        feedback: textResponse || "Review complete.",
         improvements: [],
         securityIssues: [],
       };
@@ -269,7 +312,7 @@ Respond in JSON format:
       this.logger.error(`Code review error: ${error.message}`);
       return {
         rating: 5,
-        feedback: 'Unable to complete review. Please try again.',
+        feedback: "Unable to complete review. Please try again.",
         improvements: [],
         securityIssues: [],
       };
@@ -278,7 +321,10 @@ Respond in JSON format:
 
   // ==================== HINT GENERATOR ====================
 
-  async generateHint(question: string, difficulty: 'easy' | 'medium' | 'hard'): Promise<string> {
+  async generateHint(
+    question: string,
+    difficulty: "easy" | "medium" | "hard",
+  ): Promise<string> {
     const hints = {
       easy: `Here's a gentle nudge: Think about the basic components involved. What are the key terms in this question?`,
       medium: `Consider breaking this down: What would happen if you tried the opposite approach? Sometimes understanding why something doesn't work helps find what does.`,
@@ -288,12 +334,98 @@ Respond in JSON format:
     return hints[difficulty] || hints.medium;
   }
 
+  async generateStudyPlan(
+    input: StudyPlanInput,
+    userId?: string,
+  ): Promise<StudyPlan> {
+    const apiKey = this.configService.get<string>("GEMINI_API_KEY");
+
+    if (!apiKey) {
+      return this.getLocalStudyPlan(input, userId);
+    }
+
+    try {
+      const systemInstruction = `You are StudyAI's curriculum planner.
+Create practical learning plans with clear weekly deliverables.
+Respond with valid JSON only. Do not wrap the JSON in markdown.`;
+
+      const response = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Create a study plan for this input:
+${JSON.stringify(input)}
+
+Required JSON shape:
+{
+  "goal": "string",
+  "level": "string",
+  "weeklyHours": number,
+  "durationWeeks": number,
+  "milestones": ["string"],
+  "weeks": [
+    {
+      "week": number,
+      "theme": "string",
+      "objectives": ["string"],
+      "activities": ["string"],
+      "deliverable": "string"
+    }
+  ]
+}`,
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Gemini API returned status code ${response.status}`);
+      }
+
+      const data = await response.json();
+      const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const plan = this.parseStudyPlan(textResponse, input);
+      return this.persistStudyPlan(plan, input, userId);
+    } catch (error) {
+      this.logger.error(`Study plan generation error: ${error.message}`);
+      return this.getLocalStudyPlan(input, userId);
+    }
+  }
+
+  async listStudyPlans(userId: string) {
+    return this.prisma.studyPlan.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+  }
+
+  async getLatestStudyPlan(userId: string) {
+    return this.prisma.studyPlan.findFirst({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
   // ==================== LOCAL MOCK RESPONSES ====================
 
   private getLocalMockExplanation(prompt: string, context?: string): string {
-    const contentLower = (prompt + ' ' + (context || '')).toLowerCase();
+    const contentLower = (prompt + " " + (context || "")).toLowerCase();
 
-    if (contentLower.includes('python') || contentLower.includes('print')) {
+    if (contentLower.includes("python") || contentLower.includes("print")) {
       return `### Python Printing Guide
 In Python, \`print()\` outputs text.
 - Ensure your parenthesis are closed.
@@ -301,7 +433,11 @@ In Python, \`print()\` outputs text.
 - You can format outputs using f-strings: \`print(f"XP: {user_xp}")\`.`;
     }
 
-    if (contentLower.includes('subnet') || contentLower.includes('mask') || contentLower.includes('cidr')) {
+    if (
+      contentLower.includes("subnet") ||
+      contentLower.includes("mask") ||
+      contentLower.includes("cidr")
+    ) {
       return `### Subnet Mask Guide
 Subnetting partitions Class C blocks:
 - **/24**: Netmask \`255.255.255.0\` (256 IPs, 254 hosts).
@@ -310,7 +446,11 @@ Subnetting partitions Class C blocks:
 Formulas: Hosts = \(2^{(32-N)} - 2\).`;
     }
 
-    if (contentLower.includes('suid') || contentLower.includes('privilege') || contentLower.includes('exploit')) {
+    if (
+      contentLower.includes("suid") ||
+      contentLower.includes("privilege") ||
+      contentLower.includes("exploit")
+    ) {
       return `### Linux SUID Privilege Escalation
 SUID files run with the permissions of the file owner (e.g. root):
 - Identified by \`-rws---\` permissions.
@@ -329,20 +469,180 @@ SUID files run with the permissions of the file owner (e.g. root):
     followUp: string;
     hint: string;
   }> {
-    const lastMessage = messages[messages.length - 1]?.content.toLowerCase() || '';
+    const lastMessage =
+      messages[messages.length - 1]?.content.toLowerCase() || "";
 
-    if (lastMessage.includes('stuck') || lastMessage.includes('help') || lastMessage.includes('hint')) {
+    if (
+      lastMessage.includes("stuck") ||
+      lastMessage.includes("help") ||
+      lastMessage.includes("hint")
+    ) {
       return {
-        response: "That's okay — everyone gets stuck sometimes! Let's think about this differently. What have you tried so far?",
-        followUp: 'Can you describe what happened when you tried that approach?',
-        hint: 'Start by identifying the main components of the problem.',
+        response:
+          "That's okay — everyone gets stuck sometimes! Let's think about this differently. What have you tried so far?",
+        followUp:
+          "Can you describe what happened when you tried that approach?",
+        hint: "Start by identifying the main components of the problem.",
       };
     }
 
     return {
-      response: "Great question! Before I help, let me ask — what do you think might be the first step here?",
-      followUp: 'What makes you think that?',
-      hint: '',
+      response:
+        "Great question! Before I help, let me ask — what do you think might be the first step here?",
+      followUp: "What makes you think that?",
+      hint: "",
     };
+  }
+
+  private parseStudyPlan(
+    text: string | undefined,
+    input: StudyPlanInput,
+  ): StudyPlan {
+    if (!text) {
+      throw new Error("Invalid response structure");
+    }
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("Study plan response did not contain JSON");
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as Partial<StudyPlan>;
+    if (
+      !parsed.weeks ||
+      !Array.isArray(parsed.weeks) ||
+      parsed.weeks.length === 0
+    ) {
+      throw new Error("Study plan response missing weeks");
+    }
+
+    return {
+      goal: parsed.goal || input.goal,
+      level: parsed.level || input.currentLevel,
+      weeklyHours: parsed.weeklyHours || input.weeklyHours,
+      durationWeeks: parsed.durationWeeks || parsed.weeks.length,
+      milestones: parsed.milestones || [],
+      weeks: parsed.weeks,
+    };
+  }
+
+  private async getLocalStudyPlan(
+    input: StudyPlanInput,
+    userId?: string,
+  ): Promise<StudyPlan> {
+    const durationWeeks = this.calculateStudyPlanWeeks(input.targetDate);
+    const focusAreas =
+      input.focusAreas.length > 0
+        ? input.focusAreas
+        : ["foundations", "practice", "project work"];
+
+    const weeks = Array.from({ length: durationWeeks }, (_, index) => {
+      const focus = focusAreas[index % focusAreas.length];
+      const week = index + 1;
+
+      return {
+        week,
+        theme: `${focus} sprint`,
+        objectives: [
+          `Build ${input.currentLevel} understanding of ${focus}`,
+          `Complete targeted practice for ${input.goal}`,
+        ],
+        activities: [
+          `Study core ${focus} concepts for ${Math.max(1, Math.floor(input.weeklyHours * 0.4))} hours`,
+          `Complete hands-on exercises for ${Math.max(1, Math.floor(input.weeklyHours * 0.4))} hours`,
+          "Write a short reflection with gaps and next actions",
+        ],
+        deliverable: `A working ${focus} artifact or solved challenge set`,
+      };
+    });
+
+    const plan: StudyPlan = {
+      goal: input.goal,
+      level: input.currentLevel,
+      weeklyHours: input.weeklyHours,
+      durationWeeks,
+      milestones: [
+        "Baseline assessment completed",
+        "Core concepts practiced with feedback",
+        "Capstone deliverable completed",
+      ],
+      weeks,
+    };
+
+    return this.persistStudyPlan(plan, input, userId);
+  }
+
+  private async persistStudyPlan(
+    plan: StudyPlan,
+    input: StudyPlanInput,
+    userId?: string,
+  ): Promise<StudyPlan & { id?: string }> {
+    await this.trackStudyPlanGenerated(userId, input);
+
+    if (!userId) {
+      return plan;
+    }
+
+    try {
+      const saved = await this.prisma.studyPlan.create({
+        data: {
+          userId,
+          goal: plan.goal,
+          level: plan.level,
+          weeklyHours: plan.weeklyHours,
+          durationWeeks: plan.durationWeeks,
+          milestones: plan.milestones,
+          weeks: plan.weeks as any,
+          focusAreas: input.focusAreas,
+        },
+      });
+
+      return { ...plan, id: saved.id };
+    } catch (error) {
+      this.logger.warn("Failed to persist study plan");
+      return plan;
+    }
+  }
+
+  private calculateStudyPlanWeeks(targetDate?: string): number {
+    if (!targetDate) {
+      return 6;
+    }
+
+    const target = new Date(targetDate);
+    if (Number.isNaN(target.getTime())) {
+      return 6;
+    }
+
+    const now = new Date();
+    const diffMs = target.getTime() - now.getTime();
+    const weeks = Math.ceil(diffMs / (1000 * 60 * 60 * 24 * 7));
+    return Math.min(24, Math.max(1, weeks));
+  }
+
+  private async trackStudyPlanGenerated(
+    userId: string | undefined,
+    input: StudyPlanInput,
+  ) {
+    if (!userId) {
+      return;
+    }
+
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          userId,
+          action: "AI_STUDY_PLAN_GENERATED",
+          details: {
+            goal: input.goal,
+            currentLevel: input.currentLevel,
+            weeklyHours: input.weeklyHours,
+            focusAreas: input.focusAreas,
+          },
+        },
+      });
+    } catch (error) {
+      this.logger.warn("Failed to track study plan generation");
+    }
   }
 }

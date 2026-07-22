@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useAuthStore } from '@/lib/auth-store';
-import { apiFetch } from '@/lib/api';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { useAuthStore } from "@/lib/auth-store";
+import { bffFetch } from "@/lib/api";
 
 interface User {
   id: string;
   email: string;
   name: string;
-  role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
+  role: "STUDENT" | "INSTRUCTOR" | "ADMIN";
   xp: number;
   streak: number;
 }
@@ -17,53 +17,88 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { email: string; name: string; password: string; role?: string }) => Promise<void>;
+  register: (data: {
+    email: string;
+    name: string;
+    password: string;
+    role?: string;
+  }) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { user, token, login: storeLogin, logout: storeLogout } = useAuthStore();
+  const { user, login: storeLogin, logout: storeLogout } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const verifyToken = async () => {
-      if (!token) {
-        setIsLoading(false);
-        return;
-      }
+    let cancelled = false;
 
+    const restoreSession = async () => {
       try {
-        const userData = await apiFetch<User>('/auth/me');
-        useAuthStore.getState().updateUser(userData);
+        const data = await bffFetch<User & { accessToken?: string }>(
+          "/api/auth/me",
+        );
+        if (cancelled) return;
+        const { accessToken, ...userData } = data;
+        if (!accessToken) {
+          storeLogout();
+          return;
+        }
+        storeLogin(
+          {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            role: userData.role,
+            xp: userData.xp,
+            streak: userData.streak,
+          },
+          accessToken,
+        );
       } catch {
-        storeLogout();
+        if (!cancelled) storeLogout();
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
-    verifyToken();
-  }, [token, storeLogout]);
+    restoreSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [storeLogin, storeLogout]);
 
   const login = async (email: string, password: string) => {
-    const data = await apiFetch<{ user: User; accessToken: string }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
+    const data = await bffFetch<{ user: User; accessToken: string }>(
+      "/api/auth/login",
+      {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      },
+    );
     storeLogin(data.user, data.accessToken);
   };
 
-  const register = async (regData: { email: string; name: string; password: string; role?: string }) => {
-    const data = await apiFetch<{ user: User; accessToken: string }>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(regData),
-    });
+  const register = async (regData: {
+    email: string;
+    name: string;
+    password: string;
+    role?: string;
+  }) => {
+    const data = await bffFetch<{ user: User; accessToken: string }>(
+      "/api/auth/register",
+      {
+        method: "POST",
+        body: JSON.stringify(regData),
+      },
+    );
     storeLogin(data.user, data.accessToken);
   };
 
   const logout = () => {
+    void fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     storeLogout();
   };
 
@@ -77,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

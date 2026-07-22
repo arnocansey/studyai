@@ -1,43 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend-proxy";
 
 export async function GET(req: NextRequest) {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '');
-  
-  try {
-    const res = await fetch(`${BACKEND_URL}/study-groups`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
-
-    const data = await res.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    // Return empty array if backend not available
-    return NextResponse.json([]);
-  }
+  return proxyToBackend({ req, path: "/study-groups", requireAuth: false });
 }
 
 export async function POST(req: NextRequest) {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '');
   const body = await req.json();
-  
-  try {
-    const res = await fetch(`${BACKEND_URL}/study-groups`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify(body),
-    });
-
-    const data = await res.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to create study group' }, { status: 500 });
-  }
+  return proxyToBackend({
+    req,
+    path: "/study-groups",
+    method: "POST",
+    body,
+    requireAuth: true,
+  });
 }

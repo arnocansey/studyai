@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Flame, Snowflake, Calendar } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { Flame, Snowflake, Calendar } from "lucide-react";
+import { bffFetch } from "@/lib/api";
 
 interface StreakData {
   streak: number;
@@ -19,12 +20,26 @@ export function DailyCheckIn() {
   const checkIn = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/gamification/check-in', { method: 'POST' });
-      const data = await res.json();
-      setResult(data);
-      setData((prev) => prev ? { ...prev, streak: data.streak.streak } : null);
+      const payload = await bffFetch<any>("/api/gamification/check-in", {
+        method: "POST",
+      });
+      setResult(payload);
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              streak: payload.streak?.streak ?? prev.streak,
+              checkedInToday: true,
+            }
+          : {
+              streak: payload.streak?.streak ?? 1,
+              longestStreak: payload.streak?.streak ?? 1,
+              freezesRemaining: 0,
+              checkedInToday: true,
+            },
+      );
     } catch (error) {
-      console.error('Check-in failed:', error);
+      console.error("Check-in failed:", error);
     } finally {
       setLoading(false);
     }
@@ -47,7 +62,9 @@ export function DailyCheckIn() {
               {data?.streak || 0} days
             </p>
             {data?.longestStreak && (
-              <p className="text-xs text-gray-500">Best: {data.longestStreak} days</p>
+              <p className="text-xs text-gray-500">
+                Best: {data.longestStreak} days
+              </p>
             )}
           </div>
         </div>
@@ -64,7 +81,7 @@ export function DailyCheckIn() {
               disabled={loading}
               className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl hover:from-orange-600 hover:to-red-700 transition-all disabled:opacity-50 shadow-lg shadow-orange-500/30"
             >
-              {loading ? 'Checking in...' : 'Daily Check-in'}
+              {loading ? "Checking in..." : "Daily Check-in"}
             </button>
           )}
         </div>
@@ -79,8 +96,8 @@ export function DailyCheckIn() {
               key={i}
               className={`h-3 rounded-full transition-all ${
                 isActive
-                  ? 'bg-gradient-to-r from-orange-500 to-red-500'
-                  : 'bg-gray-200 dark:bg-gray-700'
+                  ? "bg-gradient-to-r from-orange-500 to-red-500"
+                  : "bg-gray-200 dark:bg-gray-700"
               }`}
             />
           );

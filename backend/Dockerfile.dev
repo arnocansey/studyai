@@ -7,7 +7,11 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Copy package files
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY api/package.json ./api/package.json
+COPY backend/package.json ./backend/package.json
+COPY frontend/package.json ./frontend/package.json
+COPY mobile/package.json ./mobile/package.json
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -50,7 +54,7 @@ COPY package.json pnpm-lock.yaml ./
 WORKDIR /app/backend
 
 # Expose ports
-EXPOSE 3001
+EXPOSE 4000
 
 # Start the application
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

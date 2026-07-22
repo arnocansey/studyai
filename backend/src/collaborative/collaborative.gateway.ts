@@ -7,12 +7,16 @@ import {
   OnGatewayDisconnect,
   MessageBody,
   ConnectedSocket,
-} from '@nestjs/websockets';
-import { Logger, UnauthorizedException } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import { CollaborativeService } from './collaborative.service';
+} from "@nestjs/websockets";
+import {
+  Logger,
+  UnauthorizedException,
+  ForbiddenException,
+} from "@nestjs/common";
+import { Server, Socket } from "socket.io";
+import { JwtService } from "@nestjs/jwt";
+import { ConfigService } from "@nestjs/config";
+import { CollaborativeService } from "./collaborative.service";
 
 interface AwarenessState {
   userId: string;
@@ -24,9 +28,11 @@ interface AwarenessState {
 
 @WebSocketGateway({
   cors: false,
-  namespace: '/collaborative',
+  namespace: "/collaborative",
 })
-export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class CollaborativeGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -42,15 +48,18 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
   ) {}
 
   afterInit(server: Server) {
-    this.logger.log('Collaborative Gateway initialized');
+    this.logger.log("Collaborative Gateway initialized");
   }
 
   async handleConnection(client: Socket) {
     try {
-      const token = client.handshake.auth?.token || client.handshake.query?.token;
+      const token =
+        client.handshake.auth?.token || client.handshake.query?.token;
 
-      if (!token || typeof token !== 'string') {
-        this.logger.warn(`Connection rejected: no token provided (${client.id})`);
+      if (!token || typeof token !== "string") {
+        this.logger.warn(
+          `Connection rejected: no token provided (${client.id})`,
+        );
         client.disconnect();
         return;
       }
@@ -65,10 +74,12 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
       }
 
       const userId = payload.sub || payload.id;
-      const userName = payload.name || payload.email || 'User';
+      const userName = payload.name || payload.email || "User";
 
       if (!userId) {
-        this.logger.warn(`Connection rejected: no userId in token (${client.id})`);
+        this.logger.warn(
+          `Connection rejected: no userId in token (${client.id})`,
+        );
         client.disconnect();
         return;
       }
@@ -95,7 +106,7 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
         if (docAwareness) {
           docAwareness.delete(userId);
         }
-        this.server.to(docName).emit('collaborative:user-left', {
+        this.server.to(docName).emit("collaborative:user-left", {
           userId,
           users: this.collaborativeService.getUsers(docName),
         });
@@ -110,33 +121,61 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
 
   private getUserId(client: Socket): string {
     const userId = this.userSockets.get(client.id) || (client as any).userId;
-    if (!userId) throw new UnauthorizedException('Not authenticated');
+    if (!userId) throw new UnauthorizedException("Not authenticated");
     return userId;
   }
 
   private getUserName(client: Socket): string {
-    return (client as any).userName || 'User';
+    return (client as any).userName || "User";
   }
 
-  @SubscribeMessage('doc:join')
+  @SubscribeMessage("doc:join")
   handleJoinDocument(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { docName: string; userName?: string },
   ) {
     const userId = this.getUserId(client);
     const userName = data.userName || this.getUserName(client);
+    const docName = typeof data.docName === "string" ? data.docName.trim() : "";
 
-    client.join(data.docName);
-    this.socketRooms.set(client.id, data.docName);
+    if (
+      !docName ||
+      docName.length > 128 ||
+      !/^[a-zA-Z0-9:_-]+$/.test(docName)
+    ) {
+      throw new ForbiddenException("Invalid document name");
+    }
 
-    const colorIndex = this.collaborativeService.getUsers(data.docName).length % 12;
+    // Private docs: private:{ownerUserId}:... — only the owner may join
+    if (docName.startsWith("private:")) {
+      const ownerId = docName.split(":")[1];
+      if (ownerId !== userId) {
+        throw new ForbiddenException(
+          "Not allowed to join this private document",
+        );
+      }
+    }
+
+    client.join(docName);
+    this.socketRooms.set(client.id, docName);
+
+    const colorIndex = this.collaborativeService.getUsers(docName).length % 12;
     const colors = [
-      '#EF4444', '#F97316', '#EAB308', '#22C55E',
-      '#06B6D4', '#3B82F6', '#8B5CF6', '#EC4899',
-      '#F43F5E', '#14B8A6', '#6366F1', '#A855F7',
+      "#EF4444",
+      "#F97316",
+      "#EAB308",
+      "#22C55E",
+      "#06B6D4",
+      "#3B82F6",
+      "#8B5CF6",
+      "#EC4899",
+      "#F43F5E",
+      "#14B8A6",
+      "#6366F1",
+      "#A855F7",
     ];
 
-    this.collaborativeService.addUser(data.docName, {
+    this.collaborativeService.addUser(docName, {
       socketId: client.id,
       userId,
       userName,
@@ -144,29 +183,29 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
       joinedAt: new Date(),
     });
 
-    const docState = this.collaborativeService.getStateAsUpdate(data.docName);
-    const stateVector = this.collaborativeService.getStateVector(data.docName);
+    const docState = this.collaborativeService.getStateAsUpdate(docName);
+    const stateVector = this.collaborativeService.getStateVector(docName);
 
-    if (!this.awareness.has(data.docName)) {
-      this.awareness.set(data.docName, new Map());
+    if (!this.awareness.has(docName)) {
+      this.awareness.set(docName, new Map());
     }
 
-    client.emit('doc:initial-state', {
+    client.emit("doc:initial-state", {
       state: Array.from(docState),
       stateVector: Array.from(stateVector),
-      users: this.collaborativeService.getUsers(data.docName),
+      users: this.collaborativeService.getUsers(docName),
     });
 
-    this.server.to(data.docName).emit('collaborative:user-joined', {
+    this.server.to(docName).emit("collaborative:user-joined", {
       userId,
       userName,
-      users: this.collaborativeService.getUsers(data.docName),
+      users: this.collaborativeService.getUsers(docName),
     });
 
-    return { success: true, docName: data.docName };
+    return { success: true, docName };
   }
 
-  @SubscribeMessage('doc:leave')
+  @SubscribeMessage("doc:leave")
   handleLeaveDocument(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { docName: string },
@@ -182,7 +221,7 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
       docAwareness.delete(userId);
     }
 
-    this.server.to(data.docName).emit('collaborative:user-left', {
+    this.server.to(data.docName).emit("collaborative:user-left", {
       userId,
       users: this.collaborativeService.getUsers(data.docName),
     });
@@ -190,7 +229,7 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
     return { success: true };
   }
 
-  @SubscribeMessage('doc:update')
+  @SubscribeMessage("doc:update")
   handleDocumentUpdate(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { docName: string; update: number[] },
@@ -200,7 +239,7 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
 
     this.collaborativeService.applyUpdate(data.docName, update);
 
-    client.to(data.docName).emit('doc:update', {
+    client.to(data.docName).emit("doc:update", {
       docName: data.docName,
       update: data.update,
       userId,
@@ -209,7 +248,7 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
     return { success: true };
   }
 
-  @SubscribeMessage('doc:sync')
+  @SubscribeMessage("doc:sync")
   handleSyncRequest(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { docName: string; stateVector?: number[] },
@@ -218,7 +257,7 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
     const sv = data.stateVector ? new Uint8Array(data.stateVector) : undefined;
     const state = this.collaborativeService.getStateAsUpdate(data.docName, sv);
 
-    client.emit('doc:sync-response', {
+    client.emit("doc:sync-response", {
       docName: data.docName,
       state: Array.from(state),
       userId,
@@ -227,7 +266,7 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
     return { success: true };
   }
 
-  @SubscribeMessage('awareness:update')
+  @SubscribeMessage("awareness:update")
   handleAwarenessUpdate(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { docName: string; state: AwarenessState },
@@ -243,7 +282,7 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
       userId,
     });
 
-    client.to(data.docName).emit('awareness:update', {
+    client.to(data.docName).emit("awareness:update", {
       docName: data.docName,
       userId,
       state: data.state,
@@ -252,7 +291,7 @@ export class CollaborativeGateway implements OnGatewayInit, OnGatewayConnection,
     return { success: true };
   }
 
-  @SubscribeMessage('doc:request-users')
+  @SubscribeMessage("doc:request-users")
   handleRequestUsers(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { docName: string },

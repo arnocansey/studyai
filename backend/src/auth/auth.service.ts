@@ -1,9 +1,9 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import { UsersService } from '../users/users.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import * as bcrypt from "bcrypt";
+import { UsersService } from "../users/users.service";
+import { RegisterDto } from "./dto/register.dto";
+import { LoginDto } from "./dto/login.dto";
 
 @Injectable()
 export class AuthService {
@@ -15,7 +15,9 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const existing = await this.usersService.findByEmail(dto.email);
     if (existing) {
-      throw new UnauthorizedException('An account with this email already exists.');
+      throw new UnauthorizedException(
+        "An account with this email already exists.",
+      );
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 12);
@@ -23,7 +25,7 @@ export class AuthService {
       email: dto.email,
       name: dto.name,
       password: hashedPassword,
-      role: dto.role || 'STUDENT',
+      role: "STUDENT",
     });
 
     const token = this.generateToken(user);
@@ -43,12 +45,12 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user || !user.password) {
-      throw new UnauthorizedException('Invalid email or password.');
+      throw new UnauthorizedException("Invalid email or password.");
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password.');
+      throw new UnauthorizedException("Invalid email or password.");
     }
 
     const token = this.generateToken(user);
@@ -69,8 +71,18 @@ export class AuthService {
     return this.usersService.findById(userId);
   }
 
-  private generateToken(user: { id: string; email: string; role: string }) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+  private generateToken(user: {
+    id: string;
+    email: string;
+    role: string;
+    name?: string | null;
+  }) {
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name || undefined,
+    };
     return this.jwtService.sign(payload);
   }
 }
