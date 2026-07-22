@@ -57,7 +57,8 @@ export class AiService {
     @InjectQueue(STUDY_PLAN_QUEUE)
     private readonly studyPlanQueue?: Queue<StudyPlanJobData>,
   ) {
-    this.queueEnabled = isRedisEnabled(this.configService);
+    this.queueEnabled =
+      isRedisEnabled(this.configService) && Boolean(this.studyPlanQueue);
   }
 
   // ==================== EXPLAIN CONCEPT (Direct) ====================

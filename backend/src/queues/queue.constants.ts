@@ -5,6 +5,8 @@ export type RedisConnectionOptions = {
   port: number;
   password?: string;
   maxRetriesPerRequest: null;
+  enableOfflineQueue?: boolean;
+  lazyConnect?: boolean;
 };
 
 export function getRedisConnection(
@@ -23,23 +25,34 @@ export function getRedisConnection(
     };
   }
 
+  const host = config.get<string>("REDIS_HOST");
+  if (!host) {
+    throw new Error(
+      "Redis is enabled but neither REDIS_URL nor REDIS_HOST is set",
+    );
+  }
+
   return {
-    host: config.get<string>("REDIS_HOST", "localhost"),
+    host,
     port: Number(config.get<number>("REDIS_PORT", 6379)),
     password: config.get<string>("REDIS_PASSWORD") || undefined,
     maxRetriesPerRequest: null,
   };
 }
 
+/** True only when a real Redis endpoint is configured (not localhost-by-default). */
 export function isRedisEnabled(config: ConfigService): boolean {
   const flag = config.get<string>("REDIS_ENABLED");
   if (flag === "false" || flag === "0") return false;
-  if (flag === "true" || flag === "1") return true;
-  return Boolean(
-    config.get("REDIS_URL") ||
-    config.get("REDIS_HOST") ||
-    config.get("REDIS_PORT"),
+
+  const hasEndpoint = Boolean(
+    config.get<string>("REDIS_URL") || config.get<string>("REDIS_HOST"),
   );
+
+  if (flag === "true" || flag === "1") return hasEndpoint;
+
+  // Auto-enable only when an explicit endpoint exists
+  return hasEndpoint;
 }
 
 export const NOTIFICATIONS_QUEUE = "notifications";

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
@@ -27,12 +27,14 @@ export class NotificationsService implements OnModuleInit {
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    @Optional()
     @InjectQueue(NOTIFICATIONS_QUEUE)
-    private readonly notificationsQueue: Queue<NotificationJobData>,
+    private readonly notificationsQueue?: Queue<NotificationJobData> | null,
   ) {}
 
   onModuleInit() {
-    this.queueEnabled = isRedisEnabled(this.configService);
+    this.queueEnabled =
+      isRedisEnabled(this.configService) && Boolean(this.notificationsQueue);
 
     try {
       const publicKey = this.configService.get<string>("VAPID_PUBLIC_KEY");
@@ -98,7 +100,7 @@ export class NotificationsService implements OnModuleInit {
     }
 
     try {
-      await this.notificationsQueue.add(
+      await this.notificationsQueue!.add(
         "send-user",
         { type: "send-user", userId, payload },
         { jobId: `user-${userId}-${payload.tag || Date.now()}` },
@@ -119,7 +121,7 @@ export class NotificationsService implements OnModuleInit {
     }
 
     try {
-      await this.notificationsQueue.add(
+      await this.notificationsQueue!.add(
         "broadcast",
         { type: "broadcast", payload },
         { jobId: `broadcast-${payload.tag || Date.now()}` },
