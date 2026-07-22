@@ -33,6 +33,13 @@ import "reactflow/dist/style.css";
 import "xterm/css/xterm.css";
 import { LessonMentorPanel } from "@/components/ai/lesson-mentor-panel";
 import { apiFetch } from "@/lib/api";
+import {
+  CYBER_FLAG,
+  createShellState,
+  executeCommand,
+  promptFor,
+  type ShellState,
+} from "@/lib/cyber-shell";
 
 type LabType = "CODING_LAB" | "NETWORKING_LAB" | "CYBER_LAB";
 
@@ -498,12 +505,15 @@ export default function LessonViewer() {
     },
   ]);
 
-  // 3. Cyber Lab (Xterm Terminal Emulator) States
+  // 3. Cyber Lab — virtual Linux shell
+  const shellRef = useRef<ShellState>(createShellState());
   const [terminalInput, setTerminalInput] = useState("");
+  const [terminalPrompt, setTerminalPrompt] = useState(() =>
+    promptFor(shellRef.current),
+  );
   const [terminalHistory, setTerminalHistory] = useState<string[]>([
     "StudyAI Secure Linux Exploit Sandbox v1.0",
-    "Type 'help' to view available system commands.",
-    "cadet@studyai-lab:~$ ",
+    "Type 'help' for available commands. Read ~/README.txt for the mission.",
   ]);
   const [cyberFlagInput, setCyberFlagInput] = useState("");
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -521,6 +531,14 @@ export default function LessonViewer() {
             data.labConfig.starterCode ||
               "# Write code here\nprint('Hello, StudyAI!')",
           );
+        }
+        if (data.type === "CYBER_LAB") {
+          shellRef.current = createShellState();
+          setTerminalPrompt(promptFor(shellRef.current));
+          setTerminalHistory([
+            "StudyAI Secure Linux Exploit Sandbox v1.0",
+            "Type 'help' for available commands. Read ~/README.txt for the mission.",
+          ]);
         }
         setLoading(false);
         return;
@@ -544,6 +562,14 @@ export default function LessonViewer() {
       setLesson(mockData);
       if (mockData.type === "CODING_LAB") {
         setCode(String(mockData.labConfig.starterCode || "# Write code here"));
+      }
+      if (mockData.type === "CYBER_LAB") {
+        shellRef.current = createShellState();
+        setTerminalPrompt(promptFor(shellRef.current));
+        setTerminalHistory([
+          "StudyAI Secure Linux Exploit Sandbox v1.0",
+          "Type 'help' for available commands. Read ~/README.txt for the mission.",
+        ]);
       }
       setLoading(false);
     }
@@ -732,96 +758,30 @@ export default function LessonViewer() {
     }, 800);
   };
 
-  // 3. CYBER LAB LOGIC (Terminal commands parsing)
+  // 3. CYBER LAB LOGIC — virtual Linux shell
   const handleTerminalSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!terminalInput.trim()) return;
 
     const cmd = terminalInput.trim();
-    const newLogs = [...terminalHistory, `cadet@studyai-lab:~$ ${cmd}`];
+    const prompt = terminalPrompt;
     setTerminalInput("");
 
-    // Command parser
-    setTimeout(() => {
-      let responseLines: string[] = [];
-      const parts = cmd.split(" ");
-      const baseCmd = parts[0].toLowerCase();
+    const result = executeCommand(shellRef.current, cmd);
+    shellRef.current = result.state;
+    const nextPrompt = promptFor(shellRef.current);
+    setTerminalPrompt(nextPrompt);
 
-      switch (baseCmd) {
-        case "help":
-          responseLines = [
-            "Available commands:",
-            "  help          Show this system manual",
-            "  ls            List files in the current working directory",
-            "  cat <file>    Inspect text contents of a file",
-            "  file <file>   Identify file properties and SUID metadata",
-            "  run <file>    Execute binaries",
-          ];
-          break;
-        case "ls":
-          responseLines = [
-            "total 16",
-            "-rwxr-xr-x    1 cadet    cadet         402 Jul  9 00:30 README.txt",
-            "-rwsr-xr-x    1 root     root        12480 Jul  9 00:30 vuln-helper",
-          ];
-          break;
-        case "file":
-          if (parts[1] === "vuln-helper") {
-            responseLines = [
-              "vuln-helper: setuid ELF 64-bit LSB executable, owner: root",
-            ];
-          } else {
-            responseLines = ["Usage: file <filename>"];
-          }
-          break;
-        case "cat":
-          if (parts[1] === "README.txt") {
-            responseLines = [
-              "Vulnerability Scope:",
-              "The binary 'vuln-helper' runs with root privileges via SUID.",
-              "Try running it with a buffer overflow exploit payload to read /root/flag.txt.",
-            ];
-          } else if (parts[1] === "/root/flag.txt") {
-            responseLines = [
-              "cat: /root/flag.txt: Permission denied (Access requires root level).",
-            ];
-          } else {
-            responseLines = [`cat: ${parts[1] || ""}: File not found`];
-          }
-          break;
-        case "run":
-          if (parts[1] === "vuln-helper") {
-            // Buffer overflow payload trigger check
-            const payload = parts.slice(2).join(" ");
-            if (
-              payload.includes("A".repeat(16)) ||
-              payload.includes("overflow")
-            ) {
-              responseLines = [
-                "[EXPL EXPLOIT CRITICAL TRIGGERED]",
-                "SUID bit hijack active. Running with UID 0 (root).",
-                "Flag discovered: studyai{suid_priv_escalation_success}",
-              ];
-            } else {
-              responseLines = [
-                "vuln-helper: Running standard diagnostics...",
-                "Error: Insufficient payload argument size. Access denied.",
-              ];
-            }
-          } else {
-            responseLines = ["Usage: run vuln-helper [exploit_payload]"];
-          }
-          break;
-        default:
-          responseLines = [`sh: ${baseCmd}: command not found`];
-      }
+    if (result.clear) {
+      setTerminalHistory([]);
+      return;
+    }
 
-      setTerminalHistory((prev) => [
-        ...prev,
-        ...responseLines,
-        "cadet@studyai-lab:~$ ",
-      ]);
-    }, 200);
+    setTerminalHistory((prev) => [
+      ...prev,
+      `${prompt} ${cmd}`,
+      ...result.lines,
+    ]);
   };
 
   const handleFlagSubmit = async (e: React.FormEvent) => {
@@ -847,7 +807,7 @@ export default function LessonViewer() {
 
     // Local check fallback
     setTimeout(() => {
-      if (cyberFlagInput.trim() === "studyai{suid_priv_escalation_success}") {
+      if (cyberFlagInput.trim() === CYBER_FLAG) {
         setLabStatus("success");
         setLabLogs("Flag verification complete! +150 XP awarded.");
         setCompleted(true);
@@ -1422,10 +1382,10 @@ export default function LessonViewer() {
                       ))}
                       <form
                         onSubmit={handleTerminalSubmit}
-                        className="flex items-center"
+                        className="flex items-center gap-1"
                       >
-                        <span className="text-cyber-green font-mono mr-1">
-                          cadet@studyai-lab:~$
+                        <span className="shrink-0 font-mono text-cyber-green">
+                          {terminalPrompt}
                         </span>
                         <input
                           type="text"
@@ -1433,6 +1393,10 @@ export default function LessonViewer() {
                           onChange={(e) => setTerminalInput(e.target.value)}
                           className="flex-1 bg-transparent border-none text-cyber-green focus:outline-none font-mono text-xs caret-cyber-green"
                           autoFocus
+                          spellCheck={false}
+                          autoCapitalize="off"
+                          autoCorrect="off"
+                          aria-label="Shell input"
                         />
                       </form>
                       <div ref={terminalEndRef} />
