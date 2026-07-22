@@ -37,7 +37,7 @@ import { QueuesModule } from "./queues/queues.module";
       inject: [ConfigService],
     }),
     PrismaModule,
-    QueuesModule,
+    QueuesModule.forRoot(),
     AuthModule,
     CoursesModule,
     LessonsModule,

@@ -4,8 +4,9 @@ services:
     runtime: node
     region: oregon
     plan: free
+    # Migrate on build AND start so schema stays current even if build cache skips migrate.
     buildCommand: cd backend && npm install --legacy-peer-deps --include=dev && npx prisma@6.19.3 migrate deploy && npx prisma@6.19.3 generate && npx nest build
-    startCommand: cd backend && node dist/src/main.js
+    startCommand: cd backend && npx prisma@6.19.3 migrate deploy && node dist/src/main.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -49,15 +50,9 @@ services:
         value: 60
       - key: THROTTLE_LIMIT
         value: 60
-      # Attach a Render Redis instance and set REDIS_URL (preferred).
-      # REDIS_ENABLED=false falls back to sync push + single-instance sockets.
+      # Leave Redis off until you attach a Render Redis instance and set REDIS_URL.
+      # REDIS_ENABLED=true alone without REDIS_URL will not attempt localhost.
       - key: REDIS_ENABLED
-        value: "true"
+        value: "false"
       - key: REDIS_URL
-        sync: false
-      - key: REDIS_HOST
-        sync: false
-      - key: REDIS_PORT
-        value: "6379"
-      - key: REDIS_PASSWORD
         sync: false
