@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Brain, Lightbulb, Send, Sparkles, Wand2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,7 +54,12 @@ export function LessonMentorPanel({
   const [followUp, setFollowUp] = useState("");
   const [practice, setPractice] = useState<PracticeQuestion[]>([]);
   const [practiceLoading, setPracticeLoading] = useState(false);
+  const [savingQuiz, setSavingQuiz] = useState(false);
+  const [flashLoading, setFlashLoading] = useState(false);
+  const [flashMsg, setFlashMsg] = useState("");
   const [error, setError] = useState("");
+  const role = useAuthStore((s) => s.user?.role);
+  const canSaveQuiz = role === "INSTRUCTOR" || role === "ADMIN";
 
   useEffect(() => {
     let cancelled = false;
@@ -128,22 +134,53 @@ export function LessonMentorPanel({
     }
   };
 
-  const generatePractice = async () => {
+  const generatePractice = async (save = false) => {
     setPracticeLoading(true);
+    setSavingQuiz(save);
     setError("");
     try {
-      const data = await apiFetch<{ questions: PracticeQuestion[] }>(
-        "/ai/quiz/generate",
-        {
-          method: "POST",
-          body: JSON.stringify({ lessonId, count: 3, save: false }),
-        },
-      );
+      const data = await apiFetch<{
+        questions: PracticeQuestion[];
+        saved?: boolean;
+      }>("/ai/quiz/generate", {
+        method: "POST",
+        body: JSON.stringify({ lessonId, count: 3, save }),
+      });
       setPractice(data.questions || []);
+      if (save)
+        setFlashMsg(
+          data.saved ? "Saved to lesson quiz bank." : "Draft only (not saved).",
+        );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Quiz generation failed");
     } finally {
       setPracticeLoading(false);
+      setSavingQuiz(false);
+    }
+  };
+
+  const generateFlashcards = async () => {
+    setFlashLoading(true);
+    setFlashMsg("");
+    setError("");
+    try {
+      const deck = await apiFetch<{
+        id: string;
+        title: string;
+        cards: unknown[];
+      }>("/ai/flashcards/generate", {
+        method: "POST",
+        body: JSON.stringify({ lessonId, count: 8 }),
+      });
+      setFlashMsg(
+        `Created deck “${deck.title}” with ${deck.cards?.length || 0} cards.`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Flashcard generation failed",
+      );
+    } finally {
+      setFlashLoading(false);
     }
   };
 
@@ -232,19 +269,42 @@ export function LessonMentorPanel({
             Practice quiz
           </CardTitle>
           <CardDescription className="text-xs">
-            Generate AI questions from this lesson (draft — not saved to the
-            bank).
+            Draft practice questions, or save to the lesson quiz bank
+            (instructors). Flashcards are saved to your deck list.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Button
             variant="outline"
             size="sm"
-            onClick={generatePractice}
+            onClick={() => generatePractice(false)}
             disabled={practiceLoading}
           >
-            {practiceLoading ? "Generating…" : "Generate 3 questions"}
+            {practiceLoading && !savingQuiz
+              ? "Generating…"
+              : "Generate 3 questions"}
           </Button>
+          {canSaveQuiz ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => generatePractice(true)}
+              disabled={practiceLoading}
+            >
+              {savingQuiz ? "Saving…" : "Save to quiz bank"}
+            </Button>
+          ) : null}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={generateFlashcards}
+            disabled={flashLoading}
+          >
+            {flashLoading ? "Creating…" : "Flashcards"}
+          </Button>
+          {flashMsg ? (
+            <p className="text-xs text-muted-foreground">{flashMsg}</p>
+          ) : null}
           {practice.map((q, idx) => (
             <div
               key={idx}

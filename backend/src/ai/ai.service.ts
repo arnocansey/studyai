@@ -1,6 +1,19 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { InjectQueue } from "@nestjs/bullmq";
+import { Queue, QueueEvents } from "bullmq";
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  getRedisConnection,
+  isRedisEnabled,
+  STUDY_PLAN_QUEUE,
+  StudyPlanJobData,
+} from "../queues/queue.constants";
 
 export interface TutorMessage {
   role: "user" | "assistant";
@@ -35,11 +48,17 @@ export interface StudyPlan {
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
+  private queueEnabled = false;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
-  ) {}
+    @Optional()
+    @InjectQueue(STUDY_PLAN_QUEUE)
+    private readonly studyPlanQueue?: Queue<StudyPlanJobData>,
+  ) {
+    this.queueEnabled = isRedisEnabled(this.configService);
+  }
 
   // ==================== EXPLAIN CONCEPT (Direct) ====================
 
@@ -756,6 +775,47 @@ ${lesson.content.slice(0, 4000)}`,
     input: StudyPlanInput,
     userId?: string,
   ): Promise<StudyPlan> {
+    if (this.queueEnabled && this.studyPlanQueue && userId) {
+      try {
+        const job = await this.studyPlanQueue.add(
+          "generate",
+          {
+            userId,
+            goal: input.goal,
+            currentLevel: input.currentLevel,
+            weeklyHours: input.weeklyHours,
+            targetDate: input.targetDate,
+            focusAreas: input.focusAreas,
+          },
+          { jobId: `study-plan-${userId}-${Date.now()}` },
+        );
+
+        const connection = getRedisConnection(this.configService);
+        const events = new QueueEvents(STUDY_PLAN_QUEUE, { connection });
+        try {
+          await events.waitUntilReady();
+          const result = (await job.waitUntilFinished(
+            events,
+            90_000,
+          )) as StudyPlan;
+          return result;
+        } finally {
+          await events.close();
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Study-plan queue failed (${error instanceof Error ? error.message : error}); running sync`,
+        );
+      }
+    }
+
+    return this.generateStudyPlanSync(input, userId);
+  }
+
+  async generateStudyPlanSync(
+    input: StudyPlanInput,
+    userId?: string,
+  ): Promise<StudyPlan> {
     const apiKey = this.configService.get<string>("GEMINI_API_KEY");
 
     if (!apiKey) {
@@ -820,6 +880,276 @@ Required JSON shape:
     } catch (error) {
       this.logger.error(`Study plan generation error: ${error.message}`);
       return this.getLocalStudyPlan(input, userId);
+    }
+  }
+
+  async analyzeWeaknesses(userId: string) {
+    const [progress, correctLogs, wrongLogs, enrollments] = await Promise.all([
+      this.prisma.lessonProgress.findMany({
+        where: { userId, completed: false },
+        take: 50,
+        include: {
+          lesson: { select: { id: true, title: true, type: true } },
+        },
+      }),
+      this.prisma.auditLog.findMany({
+        where: { userId, action: { startsWith: "QUIZ_CORRECT:" } },
+        take: 200,
+        orderBy: { timestamp: "desc" },
+      }),
+      this.prisma.auditLog.findMany({
+        where: { userId, action: { startsWith: "QUIZ_WRONG:" } },
+        take: 200,
+        orderBy: { timestamp: "desc" },
+      }),
+      this.prisma.enrollment.findMany({
+        where: { userId, completed: false },
+        include: { course: { select: { id: true, title: true, slug: true } } },
+        take: 20,
+      }),
+    ]);
+
+    const wrongByLesson = new Map<string, number>();
+    for (const log of wrongLogs) {
+      const details = (log.details || {}) as { lessonId?: string };
+      if (details.lessonId) {
+        wrongByLesson.set(
+          details.lessonId,
+          (wrongByLesson.get(details.lessonId) || 0) + 1,
+        );
+      }
+    }
+
+    const incompleteLessons = progress
+      .filter((p) => p.lesson)
+      .map((p) => ({
+        lessonId: p.lesson.id,
+        title: p.lesson.title,
+        type: p.lesson.type,
+        wrongAttempts: wrongByLesson.get(p.lesson.id) || 0,
+      }))
+      .sort((a, b) => b.wrongAttempts - a.wrongAttempts);
+
+    const focusAreas = [
+      ...new Set(
+        incompleteLessons
+          .slice(0, 5)
+          .map((l) => l.type.replace(/_/g, " ").toLowerCase()),
+      ),
+    ];
+
+    return {
+      summary: {
+        incompleteLessons: incompleteLessons.length,
+        correctAnswers: correctLogs.length,
+        wrongAnswers: wrongLogs.length,
+        openCourses: enrollments.length,
+      },
+      incompleteLessons: incompleteLessons.slice(0, 10),
+      openCourses: enrollments.map((e) => e.course),
+      recommendedFocus: focusAreas,
+      coachTip:
+        incompleteLessons.length > 0
+          ? `Resume "${incompleteLessons[0].title}" and retry missed quiz items before starting new modules.`
+          : "Strong momentum — generate a study plan to lock in your next goals.",
+    };
+  }
+
+  async *streamTutorTokens(
+    messages: TutorMessage[],
+    topic?: string,
+    lessonId?: string,
+  ): AsyncGenerator<string> {
+    const apiKey = this.configService.get<string>("GEMINI_API_KEY");
+    const lessonContext = lessonId
+      ? await this.loadLessonContext(lessonId)
+      : null;
+
+    if (!apiKey) {
+      const local = await this.getLocalSocraticResponse(messages);
+      yield local.response;
+      return;
+    }
+
+    const systemInstruction = `You are StudyAI's Socratic Mentor. Guide with questions; keep responses under 120 words.
+${topic ? `Topic: ${topic}` : ""}
+${lessonContext ? `Lesson: ${lessonContext.title}\n${lessonContext.content.slice(0, 1500)}` : ""}`;
+
+    const conversationHistory = messages.map((m) => ({
+      role: m.role === "user" ? "user" : "model",
+      parts: [{ text: m.content }],
+    }));
+
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?alt=sse",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemInstruction }] },
+          contents:
+            conversationHistory.length > 0
+              ? conversationHistory
+              : [{ role: "user", parts: [{ text: "Help me get started." }] }],
+        }),
+      },
+    );
+
+    if (!response.ok || !response.body) {
+      const fallback = await this.callSocraticGemini(
+        messages,
+        topic,
+        lessonContext,
+      );
+      yield fallback.response;
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split("\n");
+      buffer = chunks.pop() || "";
+
+      for (const line of chunks) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = line.slice(6).trim();
+        if (!payload || payload === "[DONE]") continue;
+        try {
+          const json = JSON.parse(payload);
+          const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) yield text;
+        } catch {
+          // ignore partial JSON
+        }
+      }
+    }
+  }
+
+  async generateFlashcards(lessonId: string, userId: string, count = 8) {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { id: true, title: true, type: true, content: true },
+    });
+    if (!lesson) {
+      throw new NotFoundException(`Lesson with ID ${lessonId} not found`);
+    }
+
+    const cards = await this.draftFlashcards(lesson, count);
+    const deck = await this.prisma.flashcardDeck.create({
+      data: {
+        userId,
+        lessonId,
+        title: `Flashcards · ${lesson.title}`,
+        cards: {
+          create: cards.map((c) => ({ front: c.front, back: c.back })),
+        },
+      },
+      include: { cards: true },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: "AI_FLASHCARDS_GENERATED",
+        details: { lessonId, deckId: deck.id, count: cards.length },
+      },
+    });
+
+    return deck;
+  }
+
+  async listFlashcardDecks(userId: string) {
+    return this.prisma.flashcardDeck.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { cards: true } } },
+      take: 30,
+    });
+  }
+
+  async getFlashcardDeck(userId: string, deckId: string) {
+    return this.prisma.flashcardDeck.findFirst({
+      where: { id: deckId, userId },
+      include: { cards: { orderBy: { createdAt: "asc" } } },
+    });
+  }
+
+  private async draftFlashcards(
+    lesson: { title: string; type: string; content: string },
+    count: number,
+  ): Promise<Array<{ front: string; back: string }>> {
+    const apiKey = this.configService.get<string>("GEMINI_API_KEY");
+    if (!apiKey) {
+      return [
+        {
+          front: `What is the focus of ${lesson.title}?`,
+          back: lesson.title,
+        },
+        {
+          front: "What lesson type is this?",
+          back: lesson.type,
+        },
+      ].slice(0, count);
+    }
+
+    try {
+      const response = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            system_instruction: {
+              parts: [
+                {
+                  text: `Generate ${count} flashcards as JSON only: { "cards": [ { "front": "...", "back": "..." } ] }`,
+                },
+              ],
+            },
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Lesson: ${lesson.title}\nType: ${lesson.type}\n${lesson.content.slice(0, 3500)}`,
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      );
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const match = text.match(/\{[\s\S]*\}/);
+      if (!match) {
+        throw new Error("No JSON");
+      }
+      const parsed = JSON.parse(match[0]) as {
+        cards?: Array<{ front: string; back: string }>;
+      };
+      return (parsed.cards || [])
+        .filter((c) => c.front && c.back)
+        .slice(0, count);
+    } catch (error) {
+      this.logger.warn(`Flashcard draft failed: ${error.message}`);
+      return [
+        {
+          front: `Key idea in ${lesson.title}?`,
+          back: "Review the lesson content and summarize in one sentence.",
+        },
+      ];
     }
   }
 

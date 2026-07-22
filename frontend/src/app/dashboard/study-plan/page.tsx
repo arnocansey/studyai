@@ -53,6 +53,15 @@ export default function StudyPlanPage() {
   const [loadingLatest, setLoadingLatest] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [weaknesses, setWeaknesses] = useState<{
+    coachTip: string;
+    recommendedFocus: string[];
+    summary: {
+      incompleteLessons: number;
+      wrongAnswers: number;
+      correctAnswers: number;
+    };
+  } | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -81,6 +90,18 @@ export default function StudyPlanPage() {
       })
       .catch(() => {})
       .finally(() => setLoadingLatest(false));
+
+    apiFetch<{
+      coachTip: string;
+      recommendedFocus: string[];
+      summary: {
+        incompleteLessons: number;
+        wrongAnswers: number;
+        correctAnswers: number;
+      };
+    }>("/ai/weaknesses")
+      .then(setWeaknesses)
+      .catch(() => setWeaknesses(null));
   }, [isAuthenticated, router]);
 
   const submit = async (event: FormEvent) => {
@@ -123,7 +144,33 @@ export default function StudyPlanPage() {
             automatically.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          {weaknesses ? (
+            <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Weakness coach
+              </p>
+              <p className="text-sm text-foreground">{weaknesses.coachTip}</p>
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span>
+                  {weaknesses.summary.incompleteLessons} incomplete lessons
+                </span>
+                <span>·</span>
+                <span>{weaknesses.summary.wrongAnswers} wrong answers</span>
+                <span>·</span>
+                <span>{weaknesses.summary.correctAnswers} correct</span>
+              </div>
+              {weaknesses.recommendedFocus.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {weaknesses.recommendedFocus.map((focus) => (
+                    <Badge key={focus} variant="secondary">
+                      {focus}
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="goal">Goal</Label>

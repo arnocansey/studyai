@@ -5,6 +5,7 @@ import {
   getRedisConnection,
   isRedisEnabled,
   NOTIFICATIONS_QUEUE,
+  STUDY_PLAN_QUEUE,
 } from "./queue.constants";
 
 @Module({
@@ -30,15 +31,26 @@ import {
       },
       inject: [ConfigService],
     }),
-    BullModule.registerQueue({
-      name: NOTIFICATIONS_QUEUE,
-      defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: "exponential", delay: 2000 },
-        removeOnComplete: 100,
-        removeOnFail: 200,
+    BullModule.registerQueue(
+      {
+        name: NOTIFICATIONS_QUEUE,
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: { type: "exponential", delay: 2000 },
+          removeOnComplete: 100,
+          removeOnFail: 200,
+        },
       },
-    }),
+      {
+        name: STUDY_PLAN_QUEUE,
+        defaultJobOptions: {
+          attempts: 2,
+          backoff: { type: "exponential", delay: 3000 },
+          removeOnComplete: 50,
+          removeOnFail: 100,
+        },
+      },
+    ),
   ],
   exports: [BullModule],
 })

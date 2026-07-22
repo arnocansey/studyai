@@ -35,6 +35,7 @@ import { CourseDetailScreen } from "./src/screens/CourseDetailScreen";
 import { LessonScreen } from "./src/screens/LessonScreen";
 import { StudyPlanScreen } from "./src/screens/StudyPlanScreen";
 import { PlaygroundScreen } from "./src/screens/PlaygroundScreen";
+import { MentorScreen } from "./src/screens/MentorScreen";
 
 // Types
 type RootStackParamList = {
@@ -50,6 +51,7 @@ type RootStackParamList = {
   Lesson: { lessonId: string; courseTitle?: string; lessonTitle?: string };
   StudyPlan: undefined;
   Playground: undefined;
+  Mentor: undefined;
 };
 
 type TabParamList = {
@@ -136,6 +138,7 @@ const linking = {
       Lesson: "lesson/:lessonId",
       StudyPlan: "study-plan",
       Playground: "playground",
+      Mentor: "mentor",
     },
   },
 };
@@ -252,6 +255,11 @@ function AppContent() {
             <Stack.Screen
               name="Playground"
               component={PlaygroundScreen}
+              options={{ animation: "slide_from_right" }}
+            />
+            <Stack.Screen
+              name="Mentor"
+              component={MentorScreen}
               options={{ animation: "slide_from_right" }}
             />
           </>

@@ -74,6 +74,14 @@ export class QuizService {
 
       await this.maybeCompleteLesson(userId, question.lessonId);
       await this.achievementService.checkAndAwardAchievements(userId);
+    } else {
+      await this.prisma.auditLog.create({
+        data: {
+          userId,
+          action: `QUIZ_WRONG:${questionId}`,
+          details: { questionId, lessonId: question.lessonId, answer },
+        },
+      });
     }
 
     return {

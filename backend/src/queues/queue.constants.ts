@@ -43,6 +43,16 @@ export function isRedisEnabled(config: ConfigService): boolean {
 }
 
 export const NOTIFICATIONS_QUEUE = "notifications";
+export const STUDY_PLAN_QUEUE = "study-plan";
+
+export type StudyPlanJobData = {
+  userId: string;
+  goal: string;
+  currentLevel: "beginner" | "intermediate" | "advanced";
+  weeklyHours: number;
+  targetDate?: string;
+  focusAreas: string[];
+};
 
 export type NotificationJobPayload = {
   title: string;

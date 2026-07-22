@@ -7,9 +7,11 @@ import {
   Query,
   UseGuards,
   Request,
+  Res,
   BadRequestException,
   NotFoundException,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { AiService, TutorMessage } from "./ai.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import {
@@ -288,6 +290,82 @@ export class AiController {
       count: body.count,
       save,
     });
+  }
+
+  @Get("weaknesses")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Analyze learning weaknesses from progress + quizzes",
+  })
+  analyzeWeaknesses(@Request() req: any) {
+    return this.aiService.analyzeWeaknesses(req.user.id);
+  }
+
+  @Post("tutor/stream")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Stream Socratic mentor tokens (SSE)" })
+  async streamTutor(
+    @Body() body: TutorDto,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    try {
+      for await (const token of this.aiService.streamTutorTokens(
+        body.messages || [],
+        body.topic,
+        body.lessonId,
+      )) {
+        res.write(`data: ${JSON.stringify({ token })}\n\n`);
+      }
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    } catch (error) {
+      res.write(
+        `data: ${JSON.stringify({ error: error instanceof Error ? error.message : "stream failed" })}\n\n`,
+      );
+    } finally {
+      res.end();
+    }
+  }
+
+  @Post("flashcards/generate")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Generate and save a flashcard deck from a lesson" })
+  generateFlashcards(
+    @Body() body: { lessonId: string; count?: number },
+    @Request() req: any,
+  ) {
+    if (!body.lessonId) {
+      throw new BadRequestException("lessonId is required");
+    }
+    return this.aiService.generateFlashcards(
+      body.lessonId,
+      req.user.id,
+      body.count || 8,
+    );
+  }
+
+  @Get("flashcards")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  listFlashcards(@Request() req: any) {
+    return this.aiService.listFlashcardDecks(req.user.id);
+  }
+
+  @Get("flashcards/:id")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async getFlashcards(@Request() req: any, @Param("id") id: string) {
+    const deck = await this.aiService.getFlashcardDeck(req.user.id, id);
+    if (!deck) throw new NotFoundException("Deck not found");
+    return deck;
   }
 
   @Get("study-plan/latest")

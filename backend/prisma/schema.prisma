@@ -79,6 +79,7 @@ model User {
   pushSubscriptions PushSubscription[]
   studyPlans      StudyPlan[]
   aiConversations AiConversation[]
+  flashcardDecks  FlashcardDeck[]
 }
 
 model Account {
@@ -560,4 +561,28 @@ model AiMessage {
   conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+}
+
+model FlashcardDeck {
+  id        String      @id @default(uuid())
+  userId    String
+  lessonId  String?
+  title     String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards     Flashcard[]
+
+  @@index([userId])
+}
+
+model Flashcard {
+  id        String        @id @default(uuid())
+  deckId    String
+  front     String
+  back      String
+  createdAt DateTime      @default(now())
+  deck      FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@index([deckId])
 }

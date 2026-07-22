@@ -230,6 +230,23 @@ export function DashboardScreen({ navigation }: any) {
                 Playground
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.quickAction,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+              onPress={() => navigation.navigate("Mentor")}
+              accessibilityRole="button"
+            >
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={18}
+                color={colors.primary}
+              />
+              <Text style={[styles.quickText, { color: colors.foreground }]}>
+                Mentor
+              </Text>
+            </TouchableOpacity>
           </View>
         </FadeInView>
 
@@ -420,12 +437,14 @@ const styles = StyleSheet.create({
   xpToNext: { color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 8 },
   quickRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
     paddingHorizontal: 20,
     marginTop: 16,
   },
   quickAction: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: "30%",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
