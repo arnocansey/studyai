@@ -1,25 +1,157 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { LessonType, Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class CoursesService {
+  private readonly logger = new Logger(CoursesService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
-    return this.prisma.course.findMany({
+    const include = {
+      _count: {
+        select: { modules: true },
+      },
+    } as const;
+
+    let courses = await this.prisma.course.findMany({
       where: { published: true },
       orderBy: { createdAt: "desc" },
-      include: {
-        _count: {
-          select: { modules: true },
+      include,
+    });
+
+    // Empty prod DBs (never seeded) used to fall back to fake frontend IDs like routing-201
+    if (courses.length === 0) {
+      try {
+        await this.ensureStarterCatalog();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Starter catalog bootstrap skipped: ${message}`);
+      }
+      courses = await this.prisma.course.findMany({
+        where: { published: true },
+        orderBy: { createdAt: "desc" },
+        include,
+      });
+    }
+
+    return courses;
+  }
+
+  /** Idempotent bootstrap of the 3 core published courses when the catalog is empty. */
+  async ensureStarterCatalog() {
+    const count = await this.prisma.course.count();
+    if (count > 0) return;
+
+    this.logger.warn("No courses found — seeding starter catalog");
+
+    const starters: Array<{
+      title: string;
+      slug: string;
+      description: string;
+      difficulty: string;
+      moduleTitle: string;
+      lesson: {
+        title: string;
+        type: LessonType;
+        content: string;
+        labConfig: Prisma.InputJsonValue;
+      };
+    }> = [
+      {
+        title: "Systems Programming & Scripting with Python",
+        slug: "python-systems-programming",
+        description:
+          "Master systems automation, basic scripting syntax, data types, and file execution.",
+        difficulty: "BEGINNER",
+        moduleTitle: "Foundations & Basic Syntax",
+        lesson: {
+          title: "The Hello World Executable",
+          type: LessonType.CODING_LAB,
+          content:
+            "# Hello World in Python\n\nWrite a script that prints `Hello, StudyAI!`.",
+          labConfig: {
+            language: "python",
+            starterCode: "# Write your Python code below\nprint('')",
+            solution: "print('Hello, StudyAI!')",
+          },
         },
       },
-    });
+      {
+        title: "IP Subnetting & Network Topologies",
+        slug: "ip-subnetting-topologies",
+        description:
+          "Learn subnet masks, CIDR notations, packet traversals, and routing cable setups.",
+        difficulty: "INTERMEDIATE",
+        moduleTitle: "CIDR & Routing Boundaries",
+        lesson: {
+          title: "Splitting Class C Subnets",
+          type: LessonType.NETWORKING_LAB,
+          content:
+            "# Class C Subnetwork Design\n\nSegment `192.168.1.0/24` into 4 subnets.",
+          labConfig: {
+            networkRange: "192.168.1.0/24",
+            requiredSubnets: 4,
+            targetMask: "255.255.255.192",
+          },
+        },
+      },
+      {
+        title: "Ethical Hacking & Linux Exploit Labs",
+        slug: "ethical-hacking-linux-security",
+        description:
+          "Master bash navigation, directory permissions, file cracking, and privilege escalations.",
+        difficulty: "ADVANCED",
+        moduleTitle: "Linux Directory Navigation & Security",
+        lesson: {
+          title: "Exploiting SUID Binaries",
+          type: LessonType.CYBER_LAB,
+          content:
+            "# Linux SUID Privilege Escalation\n\nExploit `/bin/vuln-helper` to capture the flag.",
+          labConfig: {
+            flag: "studyai{suid_priv_escalation_success}",
+            environmentImage: "alpine-suid-vuln",
+          },
+        },
+      },
+    ];
+
+    for (const starter of starters) {
+      const course = await this.prisma.course.create({
+        data: {
+          title: starter.title,
+          slug: starter.slug,
+          description: starter.description,
+          difficulty: starter.difficulty,
+          published: true,
+        },
+      });
+      const module = await this.prisma.module.create({
+        data: {
+          courseId: course.id,
+          title: starter.moduleTitle,
+          order: 1,
+        },
+      });
+      await this.prisma.lesson.create({
+        data: {
+          moduleId: module.id,
+          title: starter.lesson.title,
+          type: starter.lesson.type,
+          order: 1,
+          content: starter.lesson.content,
+          labConfig: starter.lesson.labConfig,
+        },
+      });
+    }
+
+    this.logger.log("Starter catalog created (3 courses)");
   }
 
   async findAllForManagement() {
@@ -117,18 +249,22 @@ export class CoursesService {
     return course;
   }
 
-  async enroll(userId: string, courseId: string) {
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
+  async enroll(userId: string, courseIdOrSlug: string) {
+    const course = await this.prisma.course.findFirst({
+      where: {
+        OR: [{ id: courseIdOrSlug }, { slug: courseIdOrSlug }],
+      },
       select: { id: true },
     });
 
     if (!course) {
-      throw new NotFoundException(`Course with ID ${courseId} not found`);
+      throw new NotFoundException(
+        `Course "${courseIdOrSlug}" not found. Refresh the page and enroll again.`,
+      );
     }
 
     const existing = await this.prisma.enrollment.findUnique({
-      where: { userId_courseId: { userId, courseId } },
+      where: { userId_courseId: { userId, courseId: course.id } },
     });
 
     if (existing) {
@@ -136,7 +272,7 @@ export class CoursesService {
     }
 
     return this.prisma.enrollment.create({
-      data: { userId, courseId },
+      data: { userId, courseId: course.id },
       include: {
         course: {
           select: {
