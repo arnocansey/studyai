@@ -48,6 +48,7 @@ export default function Dashboard() {
   >(null);
   const [loadingSyllabus, setLoadingSyllabus] = useState(false);
   const [dbCourses, setDbCourses] = useState<any[]>([]);
+  const [coursesLoaded, setCoursesLoaded] = useState(false);
   const [progressByCourseId, setProgressByCourseId] = useState<
     Record<
       string,
@@ -217,40 +218,41 @@ export default function Dashboard() {
     },
   };
 
+  // Offline-only demo cards — use real seed slugs so enroll can resolve if API is up
   const courses = [
     {
-      id: "python-101",
+      id: "python-systems-programming",
       title: "Systems Programming & Python",
-      slug: "systems-programming-and-scripting-with-python",
+      slug: "python-systems-programming",
       category: "Programming",
       difficulty: "Beginner",
-      progress: 45,
-      lessons: 12,
-      completed: 5,
+      progress: 0,
+      lessons: 3,
+      completed: 0,
       color: "border-cyber-purple",
       icon: <Code className="w-5 h-5 text-cyber-purple" />,
     },
     {
-      id: "routing-201",
+      id: "ip-subnetting-topologies",
       title: "IP Subnetting & Network Topologies",
-      slug: "ip-subnetting-and-network-topologies",
+      slug: "ip-subnetting-topologies",
       category: "Networking",
       difficulty: "Intermediate",
-      progress: 80,
-      lessons: 15,
-      completed: 12,
+      progress: 0,
+      lessons: 1,
+      completed: 0,
       color: "border-cyber-green",
       icon: <Network className="w-5 h-5 text-cyber-green" />,
     },
     {
-      id: "cyber-301",
+      id: "ethical-hacking-linux-security",
       title: "Ethical Hacking & Linux Security",
-      slug: "ethical-hacking-and-linux-exploit-labs",
+      slug: "ethical-hacking-linux-security",
       category: "Cybersecurity",
       difficulty: "Advanced",
-      progress: 15,
-      lessons: 20,
-      completed: 3,
+      progress: 0,
+      lessons: 1,
+      completed: 0,
       color: "border-cyber-blue",
       icon: <ShieldAlert className="w-5 h-5 text-cyber-blue" />,
     },
@@ -288,7 +290,8 @@ export default function Dashboard() {
             }>
           >("/courses/my-progress").catch(() => []),
         ]);
-        setDbCourses(coursesData);
+        setDbCourses(Array.isArray(coursesData) ? coursesData : []);
+        setCoursesLoaded(true);
         const map: Record<
           string,
           {
@@ -309,6 +312,7 @@ export default function Dashboard() {
         setProgressByCourseId(map);
       } catch {
         console.warn("API Server offline, running in offline mock mode.");
+        setCoursesLoaded(false);
       } finally {
         setInitialLoading(false);
       }
@@ -317,17 +321,33 @@ export default function Dashboard() {
   }, [router, isAuthenticated, user]);
 
   const handleEnroll = async (courseId: string) => {
+    // Reject legacy mock ids that never existed in the database
+    if (
+      courseId === "routing-201" ||
+      courseId === "python-101" ||
+      courseId === "cyber-301"
+    ) {
+      toast.error("Refresh the page to load live courses, then enroll again.");
+      return;
+    }
+
     setEnrollingId(courseId);
     try {
       await apiFetch(`/courses/${courseId}/enroll`, { method: "POST" });
-      const progressData = await apiFetch<
-        Array<{
-          courseId: string;
-          progress: number;
-          totalLessons: number;
-          completedLessons: number;
-        }>
-      >("/courses/my-progress");
+      // Reload catalog so cards use real UUIDs + enrollment state
+      const [coursesData, progressData] = await Promise.all([
+        apiFetch<any[]>("/courses"),
+        apiFetch<
+          Array<{
+            courseId: string;
+            progress: number;
+            totalLessons: number;
+            completedLessons: number;
+          }>
+        >("/courses/my-progress"),
+      ]);
+      setDbCourses(Array.isArray(coursesData) ? coursesData : []);
+      setCoursesLoaded(true);
       const map: Record<
         string,
         {
@@ -346,6 +366,7 @@ export default function Dashboard() {
         };
       }
       setProgressByCourseId(map);
+      toast.success("Enrolled successfully");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Enroll failed");
     } finally {
@@ -379,7 +400,7 @@ export default function Dashboard() {
   };
 
   const displayCourses =
-    dbCourses.length > 0
+    coursesLoaded || dbCourses.length > 0
       ? dbCourses.map((c) => {
           let icon = <Code className="w-5 h-5 text-cyber-purple" />;
           if (c.slug.includes("subnet")) {
@@ -415,7 +436,6 @@ export default function Dashboard() {
           };
         })
       : courses;
-
   const enterCourse = async (slug: string) => {
     setSelectedCourseSlug(slug);
     setLoadingSyllabus(true);
